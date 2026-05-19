@@ -5,6 +5,7 @@ import type { ProjectRecord } from "@projection-mapping/shared";
 
 import { MappingStage } from "../components/MappingStage";
 import { fetchProject } from "../lib/api";
+import { getRealtimeChannel, type ProjectionStatePayload } from "../lib/realtime";
 import { normalizeProjectForEditor } from "../lib/scene-utils";
 import { getSocket } from "../lib/socket";
 
@@ -12,6 +13,23 @@ export function ProjectionPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [status, setStatus] = useState("Carregando saída...");
+
+  function applyIncomingState(payload: ProjectionStatePayload, currentProjectId: string) {
+    if (payload.projectId !== currentProjectId) {
+      return;
+    }
+
+    setProject((current) =>
+      current
+        ? normalizeProjectForEditor({
+            ...current,
+            scene: payload.scene,
+            updatedAt: payload.updatedAt
+          })
+        : current
+    );
+    setStatus("Saída atualizada em tempo real.");
+  }
 
   useEffect(() => {
     if (!projectId) {
@@ -51,30 +69,26 @@ export function ProjectionPage() {
 
     const currentProjectId = projectId;
     const socket = getSocket();
+    const realtimeChannel = getRealtimeChannel();
 
     socket.emit("project:join", currentProjectId);
 
-    const handleUpdate = (payload: { projectId: string; scene: ProjectRecord["scene"]; updatedAt: string }) => {
-      if (payload.projectId !== currentProjectId) {
+    const handleUpdate = (payload: ProjectionStatePayload) => applyIncomingState(payload, currentProjectId);
+    const handleChannelMessage = (event: MessageEvent<{ type: string; payload: ProjectionStatePayload }>) => {
+      if (event.data?.type !== "projection:state_updated") {
         return;
       }
 
-      setProject((current) =>
-        current
-          ? normalizeProjectForEditor({
-              ...current,
-              scene: payload.scene,
-              updatedAt: payload.updatedAt
-            })
-          : current
-      );
-      setStatus("Saída atualizada em tempo real.");
+      applyIncomingState(event.data.payload, currentProjectId);
     };
 
     socket.on("projection:state_updated", handleUpdate);
+    realtimeChannel?.addEventListener("message", handleChannelMessage);
 
     return () => {
       socket.off("projection:state_updated", handleUpdate);
+      realtimeChannel?.removeEventListener("message", handleChannelMessage);
+      realtimeChannel?.close();
     };
   }, [projectId]);
 

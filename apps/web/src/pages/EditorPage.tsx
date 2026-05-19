@@ -15,6 +15,7 @@ import { MappingStage } from "../components/MappingStage";
 import { ProjectSidebar } from "../components/ProjectSidebar";
 import { createProject, exportProject, fetchProject, fetchProjects, importProject, saveProjectScene } from "../lib/api";
 import { createMediaFromFile } from "../lib/media-utils";
+import { getRealtimeChannel, postProjectionState } from "../lib/realtime";
 import {
   clearShapeMedia,
   cloneProjectWithScene,
@@ -42,6 +43,10 @@ function formatSavedAt(value: string | null): string {
   }).format(new Date(value));
 }
 
+function estimatePayloadBytes(value: unknown): number {
+  return new Blob([JSON.stringify(value)]).size;
+}
+
 export function EditorPage() {
   const [projectList, setProjectList] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<ProjectRecord | null>(null);
@@ -50,6 +55,7 @@ export function EditorPage() {
   const [isLoading, setIsLoading] = useState(true);
   const saveTimerRef = useRef<number | null>(null);
   const socketRef = useRef(getSocket());
+  const realtimeChannelRef = useRef(getRealtimeChannel());
 
   useEffect(() => {
     let ignore = false;
@@ -106,6 +112,8 @@ export function EditorPage() {
       if (saveTimerRef.current) {
         window.clearTimeout(saveTimerRef.current);
       }
+
+      realtimeChannelRef.current?.close();
     };
   }, []);
 
@@ -150,11 +158,17 @@ export function EditorPage() {
   }
 
   function announceProjectState(nextProject: ProjectRecord) {
-    socketRef.current.emit("scene:announce", {
+    const payload = {
       projectId: nextProject.id,
       scene: nextProject.scene,
       updatedAt: nextProject.updatedAt
-    });
+    };
+
+    postProjectionState(realtimeChannelRef.current, payload);
+
+    if (estimatePayloadBytes(payload) <= 2 * 1024 * 1024) {
+      socketRef.current.emit("scene:announce", payload);
+    }
   }
 
   function queueSave(nextProject: ProjectRecord) {

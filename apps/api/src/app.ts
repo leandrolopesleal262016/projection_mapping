@@ -91,7 +91,7 @@ export function createApp(repository: ProjectRepository = createProjectRepositor
       credentials: true
     })
   );
-  app.use(express.json({ limit: "6mb" }));
+  app.use(express.json({ limit: "100mb" }));
 
   app.get("/api/health", (_request, response) => {
     response.json({
