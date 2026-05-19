@@ -470,16 +470,31 @@ input[type="color"] {
 .mapping-stage__viewport {
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(14, 26, 35, 0.05), rgba(14, 26, 35, 0.02));
   box-shadow: inset 0 0 0 1px rgba(19, 42, 53, 0.08);
   padding: 0.4rem;
 }
 
+.mapping-stage__viewport::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .mapping-stage__viewport.is-editable {
   flex: 1;
   min-height: 0;
   height: auto;
+  cursor: grab;
+}
+
+.mapping-stage__viewport.is-panning,
+.mapping-stage__viewport.is-panning * {
+  cursor: grabbing !important;
+  user-select: none;
 }
 
 .mapping-stage__viewport.is-presentation {
@@ -533,6 +548,7 @@ input[type="color"] {
   overflow: hidden;
   border-radius: 22px;
   box-shadow: 0 28px 60px rgba(6, 24, 37, 0.24);
+  isolation: isolate;
 }
 
 .mapping-stage__viewport.is-presentation .mapping-stage__surface {
@@ -542,6 +558,7 @@ input[type="color"] {
 
 .mapping-layer {
   position: absolute;
+  z-index: 2;
 }
 
 .mapping-layer__hit,
@@ -570,6 +587,14 @@ input[type="color"] {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+.mapping-stage__media-frame {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  transform-origin: center;
 }
 
 .mapping-layer__media,

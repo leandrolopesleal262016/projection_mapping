@@ -24,7 +24,16 @@ const mediaSchema = z.object({
   src: z.string().nullable(),
   mimeType: z.string().optional(),
   label: z.string().optional(),
-  objectFit: z.enum(["cover", "contain", "fill"])
+  objectFit: z.enum(["cover", "contain", "fill"]),
+  frame: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+      width: z.number().positive(),
+      height: z.number().positive(),
+      rotation: z.number()
+    })
+    .optional()
 });
 
 const shapeSchema = z.object({

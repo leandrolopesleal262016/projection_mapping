@@ -40,6 +40,7 @@ export interface ShapeMedia {
   mimeType?: string;
   label?: string;
   objectFit: MediaFit;
+  frame?: ShapeTransform;
 }
 
 export interface Shape {
@@ -218,11 +219,26 @@ export function getPointsBounds(points: Point[]): ShapeTransform {
 }
 
 function normalizeMedia(shape: Partial<Shape>): ShapeMedia {
+  const fallbackFrame = shape.transform
+    ? {
+        ...shape.transform
+      }
+    : undefined;
+
   if (shape.media) {
-    return {
+    const media = {
       ...DEFAULT_MEDIA,
       ...shape.media
     };
+
+    if (media.kind !== "none" && !media.frame && fallbackFrame) {
+      return {
+        ...media,
+        frame: fallbackFrame
+      };
+    }
+
+    return media;
   }
 
   if (shape.svgMarkup) {
@@ -244,7 +260,12 @@ function mediaMatches(first: ShapeMedia, second: ShapeMedia): boolean {
     first.src === second.src &&
     first.mimeType === second.mimeType &&
     first.label === second.label &&
-    first.objectFit === second.objectFit
+    first.objectFit === second.objectFit &&
+    first.frame?.x === second.frame?.x &&
+    first.frame?.y === second.frame?.y &&
+    first.frame?.width === second.frame?.width &&
+    first.frame?.height === second.frame?.height &&
+    first.frame?.rotation === second.frame?.rotation
   );
 }
 

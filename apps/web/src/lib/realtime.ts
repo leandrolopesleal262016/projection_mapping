@@ -4,6 +4,9 @@ export type PlaybackMode = "play" | "stop";
 
 export interface ProjectionStatePayload {
   projectId: string;
+  projectName: string;
+  width: number;
+  height: number;
   scene: ProjectRecord["scene"];
   updatedAt: string;
   playbackMode: PlaybackMode;

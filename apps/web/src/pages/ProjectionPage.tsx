@@ -21,13 +21,15 @@ export function ProjectionPage() {
 
     setPlaybackMode(payload.playbackMode);
     setProject((current) =>
-      current
-        ? normalizeProjectForEditor({
-            ...current,
-            scene: mergeProjectionScene(current.scene, payload.scene, payload.mediaPatches ?? []),
-            updatedAt: payload.updatedAt
-          })
-        : current
+      normalizeProjectForEditor({
+        id: current?.id ?? payload.projectId,
+        name: payload.projectName,
+        width: payload.width,
+        height: payload.height,
+        createdAt: current?.createdAt ?? payload.updatedAt,
+        updatedAt: payload.updatedAt,
+        scene: mergeProjectionScene(current?.scene ?? payload.scene, payload.scene, payload.mediaPatches ?? [])
+      })
     );
   }
 
@@ -44,7 +46,7 @@ export function ProjectionPage() {
         const loaded = normalizeProjectForEditor(await fetchProject(currentProjectId));
 
         if (!ignore) {
-          setProject(loaded);
+          setProject((current) => (!current || current.updatedAt <= loaded.updatedAt ? loaded : current));
         }
       } catch {
         if (!ignore) {

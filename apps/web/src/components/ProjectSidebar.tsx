@@ -6,28 +6,16 @@ interface ProjectSidebarProps {
   currentProject: ProjectRecord | null;
   projects: ProjectSummary[];
   activeProjectId: string | null;
-  selectedShapeId: string | null;
   onSelectProject: (projectId: string) => void;
-  onSelectShape: (shapeId: string | null) => void;
   onCreateProject: (payload: { name: string; width: number; height: number }) => Promise<void>;
-  onAddPolygon: () => void;
-  onCreateShapeFromMedia: (file: File) => Promise<void>;
-  onImportProjectFile: (file: File) => Promise<void>;
-  onExportProject: () => Promise<void>;
 }
 
 export function ProjectSidebar({
   currentProject,
   projects,
   activeProjectId,
-  selectedShapeId,
   onSelectProject,
-  onSelectShape,
   onCreateProject,
-  onAddPolygon,
-  onCreateShapeFromMedia,
-  onImportProjectFile,
-  onExportProject
 }: ProjectSidebarProps) {
   const [name, setName] = useState("Novo Projeto");
   const [width, setWidth] = useState(1280);
@@ -37,82 +25,10 @@ export function ProjectSidebar({
     <aside className="sidebar sidebar--studio">
       <section className="panel panel--compact">
         <div className="panel__header">
-          <h2>Cena</h2>
-          <span>{currentProject?.scene.shapes.length ?? 0} superficies</span>
-        </div>
-        <div className="shape-list">
-          {currentProject?.scene.shapes.map((shape) => (
-            <button
-              key={shape.id}
-              type="button"
-              className={`shape-list__item ${selectedShapeId === shape.id ? "is-active" : ""}`}
-              onClick={() => onSelectShape(shape.id)}
-            >
-              <strong>{shape.name}</strong>
-              <span>{shape.points?.length ?? 0} pontos</span>
-            </button>
-          ))}
-        </div>
-        <div className="panel__group panel__group--tight">
-          <button type="button" className="button button--primary" onClick={onAddPolygon}>
-            Novo poligono
-          </button>
-          <label className="file-input">
-            Nova forma com midia
-            <input
-              type="file"
-              accept="image/*,image/gif,video/*,.svg,image/svg+xml"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-
-                if (file) {
-                  void onCreateShapeFromMedia(file);
-                }
-
-                event.target.value = "";
-              }}
-            />
-          </label>
-        </div>
-      </section>
-
-      <section className="panel panel--compact">
-        <div className="panel__header">
-          <h2>Ativos</h2>
-          <span>entrada e saida</span>
-        </div>
-        <div className="panel__group panel__group--tight">
-          <label className="file-input">
-            Importar JSON
-            <input
-              type="file"
-              accept=".json,application/json"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-
-                if (file) {
-                  void onImportProjectFile(file);
-                }
-
-                event.target.value = "";
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            className="button button--secondary"
-            disabled={!currentProject}
-            onClick={() => void onExportProject()}
-          >
-            Exportar projeto
-          </button>
-        </div>
-      </section>
-
-      <section className="panel panel--compact">
-        <div className="panel__header">
           <h2>Projetos</h2>
-          <span>{projects.length} ativos</span>
+          <span>
+            {projects.length} ativos{currentProject ? ` - ${currentProject.scene.shapes.length} formas` : ""}
+          </span>
         </div>
         <div className="project-list">
           {projects.map((project) => (

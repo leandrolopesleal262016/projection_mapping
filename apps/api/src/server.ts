@@ -13,6 +13,9 @@ const server = createServer(app);
 const liveProjectionStates = new Map<
   string,
   {
+    projectName: string;
+    width: number;
+    height: number;
     scene: ProjectScene;
     updatedAt: string;
     playbackMode: "play" | "stop";
@@ -35,6 +38,9 @@ io.on("connection", (socket) => {
     if (liveState) {
       socket.emit("projection:state_updated", {
         projectId,
+        projectName: liveState.projectName,
+        width: liveState.width,
+        height: liveState.height,
         scene: liveState.scene,
         updatedAt: liveState.updatedAt,
         playbackMode: liveState.playbackMode
@@ -47,6 +53,9 @@ io.on("connection", (socket) => {
     if (project) {
       socket.emit("projection:state_updated", {
         projectId,
+        projectName: project.name,
+        width: project.width,
+        height: project.height,
         scene: project.scene,
         updatedAt: project.updatedAt,
         playbackMode: "play"
@@ -58,6 +67,9 @@ io.on("connection", (socket) => {
     "scene:announce",
     (payload: {
       projectId: string;
+      projectName: string;
+      width: number;
+      height: number;
       scene: ProjectScene;
       updatedAt: string;
       playbackMode: "play" | "stop";
@@ -67,6 +79,9 @@ io.on("connection", (socket) => {
         liveProjectionStates.get(payload.projectId)?.scene ?? repository.getProject(payload.projectId)?.scene ?? payload.scene;
 
       liveProjectionStates.set(payload.projectId, {
+        projectName: payload.projectName,
+        width: payload.width,
+        height: payload.height,
         scene: mergeProjectionScene(baseScene, payload.scene, payload.mediaPatches ?? []),
         updatedAt: payload.updatedAt,
         playbackMode: payload.playbackMode

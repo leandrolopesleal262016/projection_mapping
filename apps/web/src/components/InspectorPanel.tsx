@@ -20,7 +20,6 @@ interface InspectorPanelProps {
   onMediaFile: (file: File) => Promise<void>;
   onMediaFitChange: (fit: MediaFit) => void;
   onClearMedia: () => void;
-  onDelete: () => void;
 }
 
 export function InspectorPanel({
@@ -30,8 +29,7 @@ export function InspectorPanel({
   onAnimationChange,
   onMediaFile,
   onMediaFitChange,
-  onClearMedia,
-  onDelete
+  onClearMedia
 }: InspectorPanelProps) {
   const [activeTab, setActiveTab] = useState<InspectorTab>("geometry");
 
@@ -253,12 +251,6 @@ export function InspectorPanel({
           </label>
         </div>
       ) : null}
-
-      <div className="inspector__footer">
-        <button type="button" className="button button--danger" onClick={onDelete}>
-          Remover forma
-        </button>
-      </div>
     </section>
   );
 }

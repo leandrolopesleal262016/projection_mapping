@@ -79,9 +79,39 @@ export function removeShapeFromScene(scene: ProjectScene, shapeId: string): Proj
   };
 }
 
+function getUniformTranslation(previousPoints: Point[] | undefined, nextPoints: Point[]): { dx: number; dy: number } | null {
+  if (!previousPoints || previousPoints.length !== nextPoints.length || previousPoints.length === 0) {
+    return null;
+  }
+
+  const dx = nextPoints[0].x - previousPoints[0].x;
+  const dy = nextPoints[0].y - previousPoints[0].y;
+
+  const isUniform = previousPoints.every((point, index) => {
+    const target = nextPoints[index];
+
+    return Math.abs(target.x - point.x - dx) < 0.0001 && Math.abs(target.y - point.y - dy) < 0.0001;
+  });
+
+  return isUniform ? { dx, dy } : null;
+}
+
 export function updateShapePoints(shape: Shape, points: Point[]): Shape {
+  const translation = getUniformTranslation(shape.points, points);
+
   return syncShapeGeometry({
     ...shape,
+    media:
+      shape.media?.frame && translation
+        ? {
+            ...shape.media,
+            frame: {
+              ...shape.media.frame,
+              x: shape.media.frame.x + translation.dx,
+              y: shape.media.frame.y + translation.dy
+            }
+          }
+        : shape.media,
     points,
     isCalibrated: true
   });
@@ -118,12 +148,20 @@ export function updateShapeAnimation(shape: Shape, patch: Partial<AnimationConfi
 }
 
 export function updateShapeMedia(shape: Shape, patch: Partial<ShapeMedia>): Shape {
+  const media = {
+    ...shape.media,
+    ...patch
+  };
+
   return {
     ...shape,
-    media: {
-      ...shape.media,
-      ...patch
-    }
+    media:
+      media.kind !== "none"
+        ? {
+            ...media,
+            frame: media.frame ?? { ...shape.transform }
+          }
+        : media
   };
 }
 

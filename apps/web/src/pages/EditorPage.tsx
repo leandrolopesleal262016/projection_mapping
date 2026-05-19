@@ -16,7 +16,7 @@ import {
 import { InspectorPanel } from "../components/InspectorPanel";
 import { MappingStage } from "../components/MappingStage";
 import { ProjectSidebar } from "../components/ProjectSidebar";
-import { createProject, exportProject, fetchProject, fetchProjects, importProject, saveProjectScene } from "../lib/api";
+import { createProject, fetchProject, fetchProjects, saveProjectScene } from "../lib/api";
 import { createMediaFromFile } from "../lib/media-utils";
 import { getRealtimeChannel, postProjectionState, type PlaybackMode } from "../lib/realtime";
 import {
@@ -225,6 +225,9 @@ export function EditorPage() {
     const mediaPatches = createProjectionMediaPatches(nextProject.scene, previousScene);
     const payload = {
       projectId: nextProject.id,
+      projectName: nextProject.name,
+      width: nextProject.width,
+      height: nextProject.height,
       scene: stripSceneMedia(nextProject.scene, mediaPatches),
       updatedAt: nextProject.updatedAt,
       playbackMode: nextPlaybackMode,
@@ -382,60 +385,6 @@ export function EditorPage() {
     commitScene(cloneProjectWithScene(project, nextScene));
   }
 
-  async function handleCreateShapeFromMedia(file: File) {
-    if (!project) {
-      return;
-    }
-
-    const media = await createMediaFromFile(file);
-    const shape = createPolygonDraft(project.scene, media);
-    shape.name = file.name.replace(/\.[^.]+$/i, "");
-
-    const nextScene = {
-      ...project.scene,
-      shapes: [...project.scene.shapes, shape]
-    };
-
-    setSelectedShapeId(shape.id);
-    setSelectedPointIndex(null);
-    commitScene(cloneProjectWithScene(project, nextScene));
-  }
-
-  async function handleImportProjectFile(file: File) {
-    const payload = JSON.parse(await file.text()) as ProjectRecord;
-    const imported = normalizeProjectForEditor(await importProject(payload));
-
-    updateProjectSummary(imported);
-    setProject(imported);
-    setSelectedShapeId(imported.scene.shapes[0]?.id ?? null);
-    setSelectedPointIndex(null);
-    setPlaybackMode("play");
-    setStageZoom(1);
-    removalUndoRef.current = [];
-    lastAnnouncedProjectRef.current = imported;
-    playbackModeRef.current = "play";
-    setStatus("Projeto importado.");
-  }
-
-  async function handleExportProject() {
-    if (!project) {
-      return;
-    }
-
-    const exported = await exportProject(project.id);
-    const blob = new Blob([JSON.stringify(exported, null, 2)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-
-    anchor.href = url;
-    anchor.download = `${project.name.toLowerCase().replace(/\s+/g, "-")}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setStatus("Projeto exportado.");
-  }
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) {
@@ -484,6 +433,23 @@ export function EditorPage() {
           <h1>{project.name}</h1>
         </div>
         <div className="topbar__actions">
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              const shape = createPolygonDraft(project.scene);
+              const nextScene = {
+                ...project.scene,
+                shapes: [...project.scene.shapes, shape]
+              };
+
+              setSelectedShapeId(shape.id);
+              setSelectedPointIndex(null);
+              commitScene(cloneProjectWithScene(project, nextScene));
+            }}
+          >
+            Novo poligono
+          </button>
           <Link className="button button--primary" to={`/projection/${project.id}`} target="_blank" rel="noreferrer">
             Abrir saida
           </Link>
@@ -497,24 +463,8 @@ export function EditorPage() {
             currentProject={project}
             projects={projectList}
             activeProjectId={project.id}
-            selectedShapeId={selectedShapeId}
             onSelectProject={(projectId) => void openProject(projectId)}
-            onSelectShape={handleSelectShape}
             onCreateProject={handleCreateProject}
-            onAddPolygon={() => {
-              const shape = createPolygonDraft(project.scene);
-              const nextScene = {
-                ...project.scene,
-                shapes: [...project.scene.shapes, shape]
-              };
-
-              setSelectedShapeId(shape.id);
-              setSelectedPointIndex(null);
-              commitScene(cloneProjectWithScene(project, nextScene));
-            }}
-            onCreateShapeFromMedia={handleCreateShapeFromMedia}
-            onImportProjectFile={handleImportProjectFile}
-            onExportProject={handleExportProject}
           />
         </aside>
 
@@ -556,7 +506,6 @@ export function EditorPage() {
               selectedShape && mutateShape(selectedShape.id, (shape) => updateShapeFit(shape, fit))
             }
             onClearMedia={() => selectedShape && mutateShape(selectedShape.id, (shape) => clearShapeMedia(shape))}
-            onDelete={handleDeleteSelection}
           />
         </aside>
 
