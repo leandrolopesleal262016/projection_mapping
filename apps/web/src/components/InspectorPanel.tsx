@@ -31,7 +31,7 @@ export function InspectorPanel({
 }: InspectorPanelProps) {
   if (!shape) {
     return (
-      <section className="panel inspector">
+      <section className="panel panel--compact inspector">
         <div className="panel__header">
           <h2>Inspetor</h2>
           <span>selecione um polígono</span>
@@ -46,7 +46,7 @@ export function InspectorPanel({
   const media = shape.media ?? DEFAULT_MEDIA;
 
   return (
-    <section className="panel inspector">
+    <section className="panel panel--compact inspector">
       <div className="panel__header">
         <h2>Inspetor</h2>
         <span>{shape.points?.length ?? 0} pontos</span>

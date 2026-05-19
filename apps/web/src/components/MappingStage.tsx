@@ -15,8 +15,12 @@ interface MappingStageProps {
   project: ProjectRecord;
   selectedShapeId: string | null;
   editable?: boolean;
+  playbackMode?: "play" | "stop";
+  zoom?: number;
   onSelectShape?: (shapeId: string | null) => void;
   onPointsChange?: (shapeId: string, points: Point[]) => void;
+  onTogglePlayback?: () => void;
+  onZoomChange?: (zoom: number) => void;
 }
 
 type DragState =
@@ -37,6 +41,16 @@ interface InsertionCandidate {
   distance: number;
   point: Point;
 }
+
+interface ZoomAnchor {
+  pointX: number;
+  pointY: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3;
 
 function stagePointToCss(point: Point, project: ProjectRecord): { left: string; top: string } {
   return {
@@ -135,21 +149,46 @@ function animationStyle(shape: Shape): CSSProperties {
   };
 }
 
-function renderMedia(shape: Shape) {
+function VideoMedia({ src, playbackMode }: { src: string; playbackMode: "play" | "stop" }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (playbackMode === "stop") {
+      video.pause();
+      video.currentTime = 0;
+      return;
+    }
+
+    void video.play().catch(() => {
+      // Browsers can reject autoplay before metadata is ready. The next update retries.
+    });
+  }, [playbackMode, src]);
+
+  return (
+    <video
+      ref={videoRef}
+      className="mapping-layer__media"
+      src={src}
+      autoPlay={playbackMode === "play"}
+      muted
+      loop
+      playsInline
+      preload={playbackMode === "play" ? "auto" : "metadata"}
+    />
+  );
+}
+
+function renderMedia(shape: Shape, playbackMode: "play" | "stop") {
   const media = shape.media ?? DEFAULT_MEDIA;
 
   if (media.kind === "video" && media.src) {
-    return (
-      <video
-        className="mapping-layer__media"
-        src={media.src}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-      />
-    );
+    return <VideoMedia src={media.src} playbackMode={playbackMode} />;
   }
 
   if (media.kind === "image" && media.src) {
@@ -163,20 +202,27 @@ export function MappingStage({
   project,
   selectedShapeId,
   editable = false,
+  playbackMode = "play",
+  zoom = 1,
   onSelectShape,
-  onPointsChange
+  onPointsChange,
+  onTogglePlayback,
+  onZoomChange
 }: MappingStageProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const zoomAnchorRef = useRef<ZoomAnchor | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const selectedShape = project.scene.shapes.find((shape) => shape.id === selectedShapeId) ?? null;
+  const stageZoom = editable ? clamp(zoom, MIN_ZOOM, MAX_ZOOM) : 1;
 
   useEffect(() => {
-    if (!editable || !dragState || !onPointsChange || !containerRef.current) {
+    if (!editable || !dragState || !onPointsChange || !surfaceRef.current) {
       return;
     }
 
     const handlePointerMove = (event: PointerEvent) => {
-      const rect = containerRef.current?.getBoundingClientRect();
+      const rect = surfaceRef.current?.getBoundingClientRect();
 
       if (!rect) {
         return;
@@ -223,143 +269,227 @@ export function MappingStage({
     };
   }, [dragState, editable, onPointsChange, project]);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const surface = surfaceRef.current;
+    const anchor = zoomAnchorRef.current;
+
+    if (!editable || !viewport || !surface || !anchor) {
+      return;
+    }
+
+    viewport.scrollLeft = clamp(
+      (anchor.pointX / project.width) * surface.clientWidth - anchor.offsetX,
+      0,
+      Math.max(surface.clientWidth - viewport.clientWidth, 0)
+    );
+    viewport.scrollTop = clamp(
+      (anchor.pointY / project.height) * surface.clientHeight - anchor.offsetY,
+      0,
+      Math.max(surface.clientHeight - viewport.clientHeight, 0)
+    );
+    zoomAnchorRef.current = null;
+  }, [editable, project.height, project.width, stageZoom]);
+
   return (
-    <section className="stage-card">
+    <section className={`stage-card ${editable ? "stage-card--editor" : ""}`}>
       <div className="stage-card__meta">
         <div>
           <strong>Palco de mapping</strong>
           <p>Insira, arraste e ajuste os pontos diretamente aqui.</p>
         </div>
-        <span>
-          {project.width} x {project.height}
-        </span>
+        <div className="stage-card__controls">
+          {editable && onTogglePlayback ? (
+            <button type="button" className="button button--ghost button--sm" onClick={onTogglePlayback}>
+              {playbackMode === "play" ? "Parar videos" : "Reproduzir videos"}
+            </button>
+          ) : null}
+          {editable && onZoomChange ? (
+            <>
+              <span className="stage-chip">Zoom {Math.round(stageZoom * 100)}%</span>
+              <button
+                type="button"
+                className="button button--ghost button--sm"
+                disabled={stageZoom === 1}
+                onClick={() => onZoomChange(1)}
+              >
+                Resetar zoom
+              </button>
+            </>
+          ) : null}
+          <span>
+            {project.width} x {project.height}
+          </span>
+        </div>
       </div>
 
       <div
-        ref={containerRef}
-        className={`mapping-stage ${editable ? "is-editable" : ""}`}
-        style={{ aspectRatio: `${project.width} / ${project.height}` }}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget || (event.target as HTMLElement).classList.contains("mapping-stage__surface")) {
-            onSelectShape?.(null);
+        ref={viewportRef}
+        className={`mapping-stage__viewport ${editable ? "is-editable" : ""}`}
+        onWheel={(event) => {
+          if (!editable || !onZoomChange || !surfaceRef.current || !viewportRef.current) {
+            return;
           }
+
+          event.preventDefault();
+
+          const delta = event.deltaY < 0 ? 0.12 : -0.12;
+          const nextZoom = Number(clamp(stageZoom + delta, MIN_ZOOM, MAX_ZOOM).toFixed(2));
+
+          if (nextZoom === stageZoom) {
+            return;
+          }
+
+          const surfaceRect = surfaceRef.current.getBoundingClientRect();
+          const viewportRect = viewportRef.current.getBoundingClientRect();
+
+          zoomAnchorRef.current = {
+            pointX: clamp(((event.clientX - surfaceRect.left) / surfaceRect.width) * project.width, 0, project.width),
+            pointY: clamp(((event.clientY - surfaceRect.top) / surfaceRect.height) * project.height, 0, project.height),
+            offsetX: event.clientX - viewportRect.left,
+            offsetY: event.clientY - viewportRect.top
+          };
+
+          onZoomChange(nextZoom);
         }}
       >
-        <div className="mapping-stage__surface" style={{ background: project.scene.background }}>
-          {project.scene.shapes.map((shape) => {
-            const points = shape.points ?? [];
-            const media = shape.media ?? DEFAULT_MEDIA;
-            const bounds = getPointsBounds(points);
-            const relativePoints = relativePolygon(points, bounds);
-            const polygonClipPath = clipPathFromRelativePoints(relativePoints, bounds.width, bounds.height);
-            const selected = shape.id === selectedShapeId;
+        <div className="mapping-stage__canvas">
+          <div
+            ref={surfaceRef}
+            className={`mapping-stage ${editable ? "is-editable" : ""}`}
+            style={{
+              aspectRatio: `${project.width} / ${project.height}`,
+              width: `${stageZoom * 100}%`
+            }}
+            onPointerDown={(event) => {
+              if (
+                event.target === event.currentTarget ||
+                (event.target as HTMLElement).classList.contains("mapping-stage__surface")
+              ) {
+                onSelectShape?.(null);
+              }
+            }}
+          >
+            <div className="mapping-stage__surface" style={{ background: project.scene.background }}>
+              {project.scene.shapes.map((shape) => {
+                const points = shape.points ?? [];
+                const media = shape.media ?? DEFAULT_MEDIA;
+                const bounds = getPointsBounds(points);
+                const relativePoints = relativePolygon(points, bounds);
+                const polygonClipPath = clipPathFromRelativePoints(relativePoints, bounds.width, bounds.height);
+                const selected = shape.id === selectedShapeId;
 
-            return (
-              <div
-                key={shape.id}
-                className={`mapping-layer ${selected ? "is-selected" : ""}`}
-                style={{
-                  left: `${(bounds.x / project.width) * 100}%`,
-                  top: `${(bounds.y / project.height) * 100}%`,
-                  width: `${(bounds.width / project.width) * 100}%`,
-                  height: `${(bounds.height / project.height) * 100}%`
-                }}
-              >
-                <button
-                  type="button"
-                  className="mapping-layer__hit"
-                  style={{ clipPath: polygonClipPath }}
-                  onPointerDown={(event) => {
-                    if (!editable || !shape.points || !containerRef.current) {
-                      return;
-                    }
+                return (
+                  <div
+                    key={shape.id}
+                    className={`mapping-layer ${selected ? "is-selected" : ""}`}
+                    style={{
+                      left: `${(bounds.x / project.width) * 100}%`,
+                      top: `${(bounds.y / project.height) * 100}%`,
+                      width: `${(bounds.width / project.width) * 100}%`,
+                      height: `${(bounds.height / project.height) * 100}%`
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="mapping-layer__hit"
+                      style={{ clipPath: polygonClipPath }}
+                      onPointerDown={(event) => {
+                        if (!editable || !shape.points || !surfaceRef.current) {
+                          return;
+                        }
 
-                    event.stopPropagation();
-                    onSelectShape?.(shape.id);
+                        event.stopPropagation();
+                        onSelectShape?.(shape.id);
 
-                    const rect = containerRef.current.getBoundingClientRect();
+                        const rect = surfaceRef.current.getBoundingClientRect();
 
-                    setDragState({
-                      mode: "shape",
-                      shapeId: shape.id,
-                      start: toStagePoint(event.clientX, event.clientY, rect, project),
-                      originPoints: [...shape.points]
-                    });
-                  }}
-                  onDoubleClick={(event) => {
-                    if (!editable || !shape.points || !onPointsChange || !containerRef.current) {
-                      return;
-                    }
+                        setDragState({
+                          mode: "shape",
+                          shapeId: shape.id,
+                          start: toStagePoint(event.clientX, event.clientY, rect, project),
+                          originPoints: [...shape.points]
+                        });
+                      }}
+                      onDoubleClick={(event) => {
+                        if (!editable || !shape.points || !onPointsChange || !surfaceRef.current) {
+                          return;
+                        }
 
-                    event.stopPropagation();
+                        event.stopPropagation();
 
-                    const rect = containerRef.current.getBoundingClientRect();
-                    const stagePoint = toStagePoint(event.clientX, event.clientY, rect, project);
-                    const threshold = 18 / (rect.width / project.width);
-                    const insertion = findInsertion(shape.points, stagePoint, threshold);
+                        const rect = surfaceRef.current.getBoundingClientRect();
+                        const stagePoint = toStagePoint(event.clientX, event.clientY, rect, project);
+                        const threshold = 18 / (rect.width / project.width);
+                        const insertion = findInsertion(shape.points, stagePoint, threshold);
 
-                    if (!insertion) {
-                      return;
-                    }
+                        if (!insertion) {
+                          return;
+                        }
 
-                    const nextPoints = [...shape.points];
-                    nextPoints.splice(insertion.segmentIndex + 1, 0, insertion.point);
-                    onPointsChange(shape.id, nextPoints);
-                    onSelectShape?.(shape.id);
-                  }}
-                />
+                        const nextPoints = [...shape.points];
+                        nextPoints.splice(insertion.segmentIndex + 1, 0, insertion.point);
+                        onPointsChange(shape.id, nextPoints);
+                        onSelectShape?.(shape.id);
+                      }}
+                    />
 
-                <div
-                  className={`mapping-layer__content animation--${shape.animation.type}`}
-                  style={{
-                    clipPath: polygonClipPath,
-                    ...animationStyle(shape)
-                  }}
-                >
-                  {renderMedia(shape)}
-                </div>
+                    <div
+                      className={`mapping-layer__content animation--${shape.animation.type}`}
+                      style={{
+                        clipPath: polygonClipPath,
+                        ...animationStyle(shape)
+                      }}
+                    >
+                      {renderMedia(shape, playbackMode)}
+                    </div>
 
-                <svg className="mapping-layer__overlay" viewBox={`0 0 ${bounds.width} ${bounds.height}`} preserveAspectRatio="none">
-                  <polygon
-                    points={svgPointsString(relativePoints)}
-                    fill={media.kind === "none" ? shape.style.fill : "rgba(0,0,0,0.08)"}
-                    fillOpacity={media.kind === "none" ? shape.style.opacity : 0.25}
-                    stroke={selected ? "#f97316" : shape.style.stroke}
-                    strokeWidth={selected ? shape.style.strokeWidth + 1 : shape.style.strokeWidth}
-                    strokeDasharray={selected ? "10 8" : undefined}
-                  />
-                </svg>
-              </div>
-            );
-          })}
+                    <svg
+                      className="mapping-layer__overlay"
+                      viewBox={`0 0 ${bounds.width} ${bounds.height}`}
+                      preserveAspectRatio="none"
+                    >
+                      <polygon
+                        points={svgPointsString(relativePoints)}
+                        fill={media.kind === "none" ? shape.style.fill : "rgba(0,0,0,0.08)"}
+                        fillOpacity={media.kind === "none" ? shape.style.opacity : 0.25}
+                        stroke={selected ? "#f97316" : shape.style.stroke}
+                        strokeWidth={selected ? shape.style.strokeWidth + 1 : shape.style.strokeWidth}
+                        strokeDasharray={selected ? "10 8" : undefined}
+                      />
+                    </svg>
+                  </div>
+                );
+              })}
 
-          {editable && selectedShape?.points
-            ? selectedShape.points.map((point, index) => (
-                <button
-                  key={`${selectedShape.id}-${index}`}
-                  type="button"
-                  className="mapping-stage__handle"
-                  style={stagePointToCss(point, project)}
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    onSelectShape?.(selectedShape.id);
-                    setDragState({
-                      mode: "point",
-                      shapeId: selectedShape.id,
-                      pointIndex: index
-                    });
-                  }}
-                >
-                  {index + 1}
-                </button>
-              ))
-            : null}
+              {editable && selectedShape?.points
+                ? selectedShape.points.map((point, index) => (
+                    <button
+                      key={`${selectedShape.id}-${index}`}
+                      type="button"
+                      className="mapping-stage__handle"
+                      aria-label={`Mover ponto ${index + 1}`}
+                      style={stagePointToCss(point, project)}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        onSelectShape?.(selectedShape.id);
+                        setDragState({
+                          mode: "point",
+                          shapeId: selectedShape.id,
+                          pointIndex: index
+                        });
+                      }}
+                    />
+                  ))
+                : null}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="stage-card__hint">
         <span>Arraste a forma para mover. Arraste os pontos para deformar.</span>
-        <span>Duplo clique em uma aresta para criar um novo ponto.</span>
+        <span>{editable ? "Scroll do mouse ajusta o zoom sem afetar a saida." : "Duplo clique em uma aresta cria um novo ponto no editor."}</span>
       </div>
     </section>
   );

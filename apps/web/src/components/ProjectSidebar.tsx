@@ -30,8 +30,8 @@ export function ProjectSidebar({
   const [height, setHeight] = useState(720);
 
   return (
-    <aside className="sidebar">
-      <section className="panel">
+    <aside className="sidebar sidebar--compact">
+      <section className="panel panel--compact">
         <div className="panel__header">
           <h2>Projetos</h2>
           <span>{projects.length} ativos</span>
@@ -88,7 +88,7 @@ export function ProjectSidebar({
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel panel--compact">
         <div className="panel__header">
           <h2>Biblioteca</h2>
           <span>polígonos e mídia</span>

@@ -51,6 +51,8 @@ export function EditorPage() {
   const [projectList, setProjectList] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [playbackMode, setPlaybackMode] = useState<"play" | "stop">("play");
+  const [stageZoom, setStageZoom] = useState(1);
   const [status, setStatus] = useState("Carregando projetos...");
   const [isLoading, setIsLoading] = useState(true);
   const saveTimerRef = useRef<number | null>(null);
@@ -79,6 +81,7 @@ export function EditorPage() {
 
           setProject(loadedProject);
           setSelectedShapeId(loadedProject.scene.shapes[0]?.id ?? null);
+          setStageZoom(1);
           setStatus("Projeto carregado.");
         } else {
           setStatus("Nenhum projeto disponível.");
@@ -128,6 +131,7 @@ export function EditorPage() {
 
       setProject(loadedProject);
       setSelectedShapeId(loadedProject.scene.shapes[0]?.id ?? null);
+      setStageZoom(1);
       setStatus("Projeto pronto para edição.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Falha ao abrir projeto.");
@@ -217,6 +221,7 @@ export function EditorPage() {
     updateProjectSummary(createdProject);
     setProject(createdProject);
     setSelectedShapeId(createdProject.scene.shapes[0]?.id ?? null);
+    setStageZoom(1);
     setStatus("Projeto criado.");
   }
 
@@ -254,6 +259,7 @@ export function EditorPage() {
     updateProjectSummary(imported);
     setProject(imported);
     setSelectedShapeId(imported.scene.shapes[0]?.id ?? null);
+    setStageZoom(1);
     setStatus("Projeto importado.");
   }
 
@@ -307,38 +313,42 @@ export function EditorPage() {
       </header>
 
       <main className="workspace workspace--single-stage">
-        <ProjectSidebar
-          currentProject={project}
-          projects={projectList}
-          activeProjectId={project.id}
-          onSelectProject={(projectId) => void openProject(projectId)}
-          onCreateProject={handleCreateProject}
-          onAddPolygon={() => {
-            const shape = createPolygonDraft(project.scene);
-            const nextScene = {
-              ...project.scene,
-              shapes: [...project.scene.shapes, shape]
-            };
-
-            setSelectedShapeId(shape.id);
-            commitScene(cloneProjectWithScene(project, nextScene));
-          }}
-          onCreateShapeFromMedia={handleCreateShapeFromMedia}
-          onImportProjectFile={handleImportProjectFile}
-          onExportProject={handleExportProject}
-        />
-
-        <section className="workspace__center">
+        <section className="workspace__center workspace__center--primary">
           <MappingStage
             project={project}
             selectedShapeId={selectedShapeId}
             editable
+            playbackMode={playbackMode}
+            zoom={stageZoom}
             onSelectShape={setSelectedShapeId}
+            onTogglePlayback={() => setPlaybackMode((current) => (current === "play" ? "stop" : "play"))}
+            onZoomChange={setStageZoom}
             onPointsChange={(shapeId: string, points: Point[]) => mutateShape(shapeId, (shape) => updateShapePoints(shape, points))}
           />
         </section>
 
-        <section className="workspace__right">
+        <section className="workspace__bottom">
+          <ProjectSidebar
+            currentProject={project}
+            projects={projectList}
+            activeProjectId={project.id}
+            onSelectProject={(projectId) => void openProject(projectId)}
+            onCreateProject={handleCreateProject}
+            onAddPolygon={() => {
+              const shape = createPolygonDraft(project.scene);
+              const nextScene = {
+                ...project.scene,
+                shapes: [...project.scene.shapes, shape]
+              };
+
+              setSelectedShapeId(shape.id);
+              commitScene(cloneProjectWithScene(project, nextScene));
+            }}
+            onCreateShapeFromMedia={handleCreateShapeFromMedia}
+            onImportProjectFile={handleImportProjectFile}
+            onExportProject={handleExportProject}
+          />
+
           <InspectorPanel
             shape={selectedShape}
             onRename={(name) => selectedShape && mutateShape(selectedShape.id, (shape) => ({ ...shape, name }))}
