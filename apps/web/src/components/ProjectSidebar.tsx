@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { ProjectRecord, ProjectSummary, ShapeType } from "@projection-mapping/shared";
+import type { ProjectRecord, ProjectSummary } from "@projection-mapping/shared";
 
 interface ProjectSidebarProps {
   currentProject: ProjectRecord | null;
@@ -8,8 +8,8 @@ interface ProjectSidebarProps {
   activeProjectId: string | null;
   onSelectProject: (projectId: string) => void;
   onCreateProject: (payload: { name: string; width: number; height: number }) => Promise<void>;
-  onAddShape: (type: ShapeType) => void;
-  onImportSvgFile: (file: File) => Promise<void>;
+  onAddPolygon: () => void;
+  onCreateShapeFromMedia: (file: File) => Promise<void>;
   onImportProjectFile: (file: File) => Promise<void>;
   onExportProject: () => Promise<void>;
 }
@@ -20,8 +20,8 @@ export function ProjectSidebar({
   activeProjectId,
   onSelectProject,
   onCreateProject,
-  onAddShape,
-  onImportSvgFile,
+  onAddPolygon,
+  onCreateShapeFromMedia,
   onImportProjectFile,
   onExportProject
 }: ProjectSidebarProps) {
@@ -91,32 +91,21 @@ export function ProjectSidebar({
       <section className="panel">
         <div className="panel__header">
           <h2>Biblioteca</h2>
-          <span>formas e mídia</span>
+          <span>polígonos e mídia</span>
         </div>
-        <div className="tool-grid">
-          <button type="button" className="button" onClick={() => onAddShape("rectangle")}>
-            Retângulo
-          </button>
-          <button type="button" className="button" onClick={() => onAddShape("circle")}>
-            Círculo
-          </button>
-          <button type="button" className="button" onClick={() => onAddShape("triangle")}>
-            Triângulo
-          </button>
-          <button type="button" className="button" onClick={() => onAddShape("polygon")}>
-            Polígono
-          </button>
-        </div>
+        <button type="button" className="button button--primary" onClick={onAddPolygon}>
+          Novo polígono
+        </button>
         <label className="file-input">
-          Importar SVG
+          Novo polígono com mídia
           <input
             type="file"
-            accept=".svg,image/svg+xml"
+            accept="image/*,image/gif,video/*,.svg,image/svg+xml"
             onChange={(event) => {
               const file = event.target.files?.[0];
 
               if (file) {
-                void onImportSvgFile(file);
+                void onCreateShapeFromMedia(file);
               }
 
               event.target.value = "";

@@ -3,8 +3,9 @@ import { Link, useParams } from "react-router-dom";
 
 import type { ProjectRecord } from "@projection-mapping/shared";
 
-import { ProjectionViewport } from "../components/ProjectionViewport";
+import { MappingStage } from "../components/MappingStage";
 import { fetchProject } from "../lib/api";
+import { normalizeProjectForEditor } from "../lib/scene-utils";
 import { getSocket } from "../lib/socket";
 
 export function ProjectionPage() {
@@ -23,7 +24,7 @@ export function ProjectionPage() {
 
     async function loadProject() {
       try {
-        const loaded = await fetchProject(currentProjectId);
+        const loaded = normalizeProjectForEditor(await fetchProject(currentProjectId));
 
         if (!ignore) {
           setProject(loaded);
@@ -60,11 +61,11 @@ export function ProjectionPage() {
 
       setProject((current) =>
         current
-          ? {
+          ? normalizeProjectForEditor({
               ...current,
               scene: payload.scene,
               updatedAt: payload.updatedAt
-            }
+            })
           : current
       );
       setStatus("Saída atualizada em tempo real.");
@@ -106,7 +107,7 @@ export function ProjectionPage() {
         </div>
       </header>
       <main className="projection-page__stage">
-        <ProjectionViewport project={project} />
+        <MappingStage project={project} selectedShapeId={null} />
       </main>
     </div>
   );

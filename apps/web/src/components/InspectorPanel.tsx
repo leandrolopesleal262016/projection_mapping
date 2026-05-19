@@ -1,9 +1,8 @@
-import type { AnimationType, Shape, ShapeStyle, ShapeTransform } from "@projection-mapping/shared";
+import { DEFAULT_MEDIA, type AnimationType, type MediaFit, type Shape, type ShapeStyle } from "@projection-mapping/shared";
 
 interface InspectorPanelProps {
   shape: Shape | null;
   onRename: (name: string) => void;
-  onTransformChange: (patch: Partial<ShapeTransform>) => void;
   onStyleChange: (patch: Partial<ShapeStyle>) => void;
   onAnimationChange: (
     patch: Partial<{
@@ -14,38 +13,43 @@ interface InspectorPanelProps {
       loop: boolean;
     }>
   ) => void;
+  onMediaFile: (file: File) => Promise<void>;
+  onMediaFitChange: (fit: MediaFit) => void;
+  onClearMedia: () => void;
   onDelete: () => void;
-  onResetCalibration: () => void;
 }
 
 export function InspectorPanel({
   shape,
   onRename,
-  onTransformChange,
   onStyleChange,
   onAnimationChange,
-  onDelete,
-  onResetCalibration
+  onMediaFile,
+  onMediaFitChange,
+  onClearMedia,
+  onDelete
 }: InspectorPanelProps) {
   if (!shape) {
     return (
       <section className="panel inspector">
         <div className="panel__header">
           <h2>Inspetor</h2>
-          <span>selecione uma forma</span>
+          <span>selecione um polígono</span>
         </div>
         <p className="empty-state">
-          Escolha uma camada no canvas para ajustar posição, calibração e animação.
+          Escolha uma forma no palco para editar cor, mídia, animação e quantidade de pontos.
         </p>
       </section>
     );
   }
 
+  const media = shape.media ?? DEFAULT_MEDIA;
+
   return (
     <section className="panel inspector">
       <div className="panel__header">
         <h2>Inspetor</h2>
-        <span>{shape.type}</span>
+        <span>{shape.points?.length ?? 0} pontos</span>
       </div>
 
       <div className="panel__group">
@@ -53,61 +57,11 @@ export function InspectorPanel({
           Nome
           <input value={shape.name} onChange={(event) => onRename(event.target.value)} />
         </label>
+        <p className="field-hint">Duplo clique em uma aresta no palco para criar um novo ponto.</p>
       </div>
 
       <div className="panel__group">
-        <h3>Transformação</h3>
-        <div className="inline-grid">
-          <label>
-            X
-            <input
-              type="number"
-              value={Math.round(shape.transform.x)}
-              onChange={(event) => onTransformChange({ x: Number(event.target.value) })}
-            />
-          </label>
-          <label>
-            Y
-            <input
-              type="number"
-              value={Math.round(shape.transform.y)}
-              onChange={(event) => onTransformChange({ y: Number(event.target.value) })}
-            />
-          </label>
-          <label>
-            Largura
-            <input
-              type="number"
-              min={24}
-              value={Math.round(shape.transform.width)}
-              onChange={(event) => onTransformChange({ width: Number(event.target.value) })}
-            />
-          </label>
-          <label>
-            Altura
-            <input
-              type="number"
-              min={24}
-              value={Math.round(shape.transform.height)}
-              onChange={(event) => onTransformChange({ height: Number(event.target.value) })}
-            />
-          </label>
-        </div>
-        <label>
-          Rotação
-          <input
-            type="range"
-            min={-180}
-            max={180}
-            value={shape.transform.rotation}
-            onChange={(event) => onTransformChange({ rotation: Number(event.target.value) })}
-          />
-          <span className="field-hint">{shape.transform.rotation.toFixed(0)}°</span>
-        </label>
-      </div>
-
-      <div className="panel__group">
-        <h3>Estilo</h3>
+        <h3>Preenchimento</h3>
         <div className="inline-grid">
           <label>
             Fill
@@ -138,7 +92,7 @@ export function InspectorPanel({
           <span className="field-hint">{shape.style.strokeWidth}px</span>
         </label>
         <label>
-          Opacidade
+          Opacidade base
           <input
             type="range"
             min={0.1}
@@ -149,6 +103,45 @@ export function InspectorPanel({
           />
           <span className="field-hint">{Math.round(shape.style.opacity * 100)}%</span>
         </label>
+      </div>
+
+      <div className="panel__group">
+        <h3>Mídia</h3>
+        <p className="field-hint">
+          Atual: {media.kind === "none" ? "sem mídia" : `${media.kind}${media.label ? ` • ${media.label}` : ""}`}
+        </p>
+        <label className="file-input">
+          Trocar mídia
+          <input
+            type="file"
+            accept="image/*,image/gif,video/*,.svg,image/svg+xml"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+
+              if (file) {
+                void onMediaFile(file);
+              }
+
+              event.target.value = "";
+            }}
+          />
+        </label>
+        <label>
+          Ajuste da mídia
+          <select value={media.objectFit} onChange={(event) => onMediaFitChange(event.target.value as MediaFit)}>
+            <option value="cover">Cover</option>
+            <option value="contain">Contain</option>
+            <option value="fill">Fill</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          className="button button--secondary"
+          disabled={media.kind === "none"}
+          onClick={onClearMedia}
+        >
+          Remover mídia
+        </button>
       </div>
 
       <div className="panel__group">
@@ -214,14 +207,6 @@ export function InspectorPanel({
           />
           Loop contínuo
         </label>
-      </div>
-
-      <div className="panel__group">
-        <h3>Calibração</h3>
-        <p className="field-hint">{shape.isCalibrated ? "quad manual ativo" : "usando quad padrão"}</p>
-        <button type="button" className="button button--secondary" onClick={onResetCalibration}>
-          Resetar calibração
-        </button>
       </div>
 
       <button type="button" className="button button--danger" onClick={onDelete}>

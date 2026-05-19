@@ -1,64 +1,64 @@
 import {
   DEFAULT_ANIMATION,
-  DEFAULT_STYLE,
+  DEFAULT_MEDIA,
   clamp,
-  createDefaultQuad,
+  createShape,
+  getPointsBounds,
+  normalizeProject,
+  syncShapeGeometry,
+  translatePoints,
   type AnimationConfig,
+  type MediaFit,
   type Point,
   type ProjectRecord,
   type ProjectScene,
   type Shape,
-  type ShapeStyle,
-  type ShapeTransform,
-  type ShapeType
+  type ShapeMedia,
+  type ShapeStyle
 } from "@projection-mapping/shared";
 
-function createPolygonPoints(sides: number, width: number, height: number): Point[] {
-  const radius = Math.min(width, height) / 2;
-  const centerX = width / 2;
-  const centerY = height / 2;
+function colorForIndex(index: number): ShapeStyle {
+  const palette: ShapeStyle[] = [
+    { fill: "#14b8a6", stroke: "#ffffff", strokeWidth: 2, opacity: 0.9 },
+    { fill: "#f59e0b", stroke: "#ffffff", strokeWidth: 2, opacity: 0.92 },
+    { fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2, opacity: 0.9 },
+    { fill: "#6366f1", stroke: "#ffffff", strokeWidth: 2, opacity: 0.9 }
+  ];
 
-  return Array.from({ length: sides }, (_, index) => {
-    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / sides;
-
-    return {
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius
-    };
-  });
+  return palette[index % palette.length];
 }
 
-export function createShapeDraft(type: ShapeType, scene: ProjectScene): Shape {
-  const x = 120 + scene.shapes.length * 32;
-  const y = 100 + scene.shapes.length * 24;
-  const baseTransform: ShapeTransform = {
-    x,
-    y,
-    width: type === "circle" ? 180 : 220,
-    height: type === "triangle" ? 220 : 160,
-    rotation: 0
-  };
+export function normalizeProjectForEditor(project: ProjectRecord): ProjectRecord {
+  return normalizeProject(project);
+}
 
-  const styles: Record<ShapeType, ShapeStyle> = {
-    rectangle: { fill: "#14b8a6", stroke: "#ffffff", strokeWidth: 2, opacity: 0.95 },
-    circle: { fill: "#f59e0b", stroke: "#ffffff", strokeWidth: 2, opacity: 0.9 },
-    triangle: { fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2, opacity: 0.88 },
-    polygon: { fill: "#6366f1", stroke: "#ffffff", strokeWidth: 2, opacity: 0.9 },
-    svg: DEFAULT_STYLE
-  };
+export function createPolygonDraft(scene: ProjectScene, media?: ShapeMedia): Shape {
+  const index = scene.shapes.length;
+  const x = 120 + index * 28;
+  const y = 90 + index * 24;
 
-  return {
+  return createShape({
     id: crypto.randomUUID(),
-    name: `Forma ${scene.shapes.length + 1}`,
-    type,
-    transform: baseTransform,
-    style: styles[type],
-    points: type === "polygon" ? createPolygonPoints(6, baseTransform.width, baseTransform.height) : undefined,
-    quad: createDefaultQuad(baseTransform),
-    isCalibrated: false,
+    name: `Forma ${index + 1}`,
+    type: "polygon",
+    transform: {
+      x,
+      y,
+      width: 240,
+      height: 180,
+      rotation: 0
+    },
+    points: [
+      { x, y: y + 18 },
+      { x: x + 228, y },
+      { x: x + 240, y: y + 146 },
+      { x: x + 180, y: y + 180 },
+      { x: x + 12, y: y + 168 }
+    ],
+    style: colorForIndex(index),
     animation: DEFAULT_ANIMATION,
-    svgMarkup: undefined
-  };
+    media: media ?? DEFAULT_MEDIA
+  });
 }
 
 export function updateShapeInScene(
@@ -68,7 +68,7 @@ export function updateShapeInScene(
 ): ProjectScene {
   return {
     ...scene,
-    shapes: scene.shapes.map((shape) => (shape.id === shapeId ? updater(shape) : shape))
+    shapes: scene.shapes.map((shape) => (shape.id === shapeId ? syncShapeGeometry(updater(shape)) : shape))
   };
 }
 
@@ -79,19 +79,22 @@ export function removeShapeFromScene(scene: ProjectScene, shapeId: string): Proj
   };
 }
 
-export function updateShapeTransform(shape: Shape, patch: Partial<ShapeTransform>): Shape {
-  const nextTransform = {
-    ...shape.transform,
-    ...patch,
-    width: clamp(patch.width ?? shape.transform.width, 24, 4096),
-    height: clamp(patch.height ?? shape.transform.height, 24, 4096)
-  };
-
-  return {
+export function updateShapePoints(shape: Shape, points: Point[]): Shape {
+  return syncShapeGeometry({
     ...shape,
-    transform: nextTransform,
-    quad: shape.isCalibrated ? shape.quad : createDefaultQuad(nextTransform)
-  };
+    points,
+    isCalibrated: true
+  });
+}
+
+export function moveShape(shape: Shape, dx: number, dy: number): Shape {
+  return updateShapePoints(shape, translatePoints(shape.points ?? [], dx, dy));
+}
+
+export function moveShapeTo(shape: Shape, x: number, y: number): Shape {
+  const bounds = getPointsBounds(shape.points ?? []);
+
+  return moveShape(shape, x - bounds.x, y - bounds.y);
 }
 
 export function updateShapeStyle(shape: Shape, patch: Partial<ShapeStyle>): Shape {
@@ -114,18 +117,51 @@ export function updateShapeAnimation(shape: Shape, patch: Partial<AnimationConfi
   };
 }
 
-export function resetShapeCalibration(shape: Shape): Shape {
+export function updateShapeMedia(shape: Shape, patch: Partial<ShapeMedia>): Shape {
   return {
     ...shape,
-    quad: createDefaultQuad(shape.transform),
-    isCalibrated: false
+    media: {
+      ...shape.media,
+      ...patch
+    }
   };
+}
+
+export function clearShapeMedia(shape: Shape): Shape {
+  return {
+    ...shape,
+    media: DEFAULT_MEDIA
+  };
+}
+
+export function updateShapeFit(shape: Shape, objectFit: MediaFit): Shape {
+  return updateShapeMedia(shape, {
+    objectFit
+  });
 }
 
 export function cloneProjectWithScene(project: ProjectRecord, scene: ProjectScene): ProjectRecord {
   return {
     ...project,
-    scene,
+    scene: normalizeProjectForEditor({
+      ...project,
+      scene
+    }).scene,
     updatedAt: new Date().toISOString()
+  };
+}
+
+export function insertPointIntoPolygon(shape: Shape, segmentIndex: number, point: Point): Shape {
+  const nextPoints = [...(shape.points ?? [])];
+
+  nextPoints.splice(segmentIndex + 1, 0, point);
+
+  return updateShapePoints(shape, nextPoints);
+}
+
+export function clampPointToStage(point: Point, project: Pick<ProjectRecord, "width" | "height">): Point {
+  return {
+    x: clamp(point.x, 0, project.width),
+    y: clamp(point.y, 0, project.height)
   };
 }

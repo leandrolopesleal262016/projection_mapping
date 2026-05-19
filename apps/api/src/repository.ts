@@ -6,6 +6,8 @@ import { randomUUID } from "node:crypto";
 
 import {
   createDefaultProject,
+  normalizeProject,
+  syncShapeGeometry,
   type CalibrationPayload,
   type CreateProjectPayload,
   type ProjectRecord,
@@ -37,7 +39,7 @@ function getDefaultDatabasePath(): string {
 }
 
 function mapRow(row: ProjectRow): ProjectRecord {
-  return {
+  return normalizeProject({
     id: row.id,
     name: row.name,
     width: row.width,
@@ -45,10 +47,12 @@ function mapRow(row: ProjectRow): ProjectRecord {
     scene: JSON.parse(row.scene_json) as ProjectScene,
     createdAt: row.created_at,
     updatedAt: row.updated_at
-  };
+  });
 }
 
 function upsertProject(db: Database.Database, project: ProjectRecord): void {
+  const normalized = normalizeProject(project);
+
   db.prepare(
     `
       INSERT INTO projects (id, name, width, height, scene_json, created_at, updated_at)
@@ -61,13 +65,13 @@ function upsertProject(db: Database.Database, project: ProjectRecord): void {
         updated_at = excluded.updated_at
     `
   ).run({
-    id: project.id,
-    name: project.name,
-    width: project.width,
-    height: project.height,
-    scene_json: JSON.stringify(project.scene),
-    created_at: project.createdAt,
-    updated_at: project.updatedAt
+    id: normalized.id,
+    name: normalized.name,
+    width: normalized.width,
+    height: normalized.height,
+    scene_json: JSON.stringify(normalized.scene),
+    created_at: normalized.createdAt,
+    updated_at: normalized.updatedAt
   });
 }
 
@@ -150,7 +154,10 @@ export function createProjectRepository(dbPath = getDefaultDatabasePath()): Proj
 
       const updated: ProjectRecord = {
         ...current,
-        scene,
+        scene: normalizeProject({
+          ...current,
+          scene
+        }).scene,
         updatedAt: new Date().toISOString()
       };
 
@@ -170,11 +177,11 @@ export function createProjectRepository(dbPath = getDefaultDatabasePath()): Proj
         ...current.scene,
         shapes: current.scene.shapes.map((shape) =>
           shape.id === payload.shapeId
-            ? {
+            ? syncShapeGeometry({
                 ...shape,
-                quad: payload.quad,
+                points: payload.quad,
                 isCalibrated: true
-              }
+              })
             : shape
         )
       };
@@ -183,12 +190,12 @@ export function createProjectRepository(dbPath = getDefaultDatabasePath()): Proj
     },
 
     importProject(project) {
-      const imported: ProjectRecord = {
+      const imported: ProjectRecord = normalizeProject({
         ...project,
         id: randomUUID(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      };
+      });
 
       upsertProject(db, imported);
 

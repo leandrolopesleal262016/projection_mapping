@@ -60,6 +60,10 @@
   min-width: 0;
 }
 
+.workspace__center {
+  display: flex;
+}
+
 .workspace__right {
   display: flex;
   flex-direction: column;
@@ -68,8 +72,7 @@
 
 .sidebar,
 .panel,
-.canvas-card,
-.projection-card {
+.stage-card {
   border: 1px solid rgba(19, 42, 53, 0.12);
   border-radius: 26px;
   background: rgba(255, 255, 255, 0.78);
@@ -85,19 +88,32 @@
 }
 
 .panel,
-.canvas-card,
-.projection-card {
+.stage-card {
   padding: 1rem;
 }
 
 .panel__header,
-.canvas-card__meta,
-.projection-card__meta {
+.stage-card__meta,
+.stage-card__hint {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.stage-card__meta {
   margin-bottom: 1rem;
+}
+
+.stage-card__meta p {
+  margin: 0.25rem 0 0;
+  color: #47616f;
+}
+
+.stage-card__hint {
+  margin-top: 0.85rem;
+  color: #47616f;
+  font-size: 0.9rem;
 }
 
 .panel__header h2,
@@ -106,8 +122,7 @@
 }
 
 .panel__header span,
-.canvas-card__meta span,
-.projection-card__meta span,
+.stage-card__meta span,
 .field-hint,
 .empty-state {
   color: #47616f;
@@ -238,47 +253,81 @@ input[type="color"] {
   width: auto;
 }
 
-.canvas-card__scroll {
-  overflow: auto;
+.mapping-stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(14, 26, 35, 0.08), rgba(14, 26, 35, 0.03));
-  padding: 1rem;
+  box-shadow: inset 0 0 0 1px rgba(19, 42, 53, 0.08);
 }
 
-.scene-svg {
-  display: block;
-  border-radius: 20px;
+.mapping-stage__surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 22px;
   box-shadow: 0 28px 60px rgba(6, 24, 37, 0.24);
 }
 
-.shape-layer {
+.mapping-layer {
+  position: absolute;
+}
+
+.mapping-layer__hit,
+.mapping-layer__content,
+.mapping-layer__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.mapping-layer__hit {
+  z-index: 3;
+  border: 0;
+  padding: 0;
+  background: transparent;
   cursor: grab;
 }
 
-.projection-surface {
-  position: relative;
-  aspect-ratio: 16 / 9;
+.mapping-layer__content {
+  z-index: 1;
   overflow: hidden;
-  border-radius: 22px;
-  background: #04070c;
+  transform-origin: center;
 }
 
-.projection-surface__canvas {
+.mapping-layer__overlay {
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.mapping-layer__media,
+.mapping-layer__fallback {
   width: 100%;
   height: 100%;
 }
 
-.projection-surface canvas {
-  width: 100% !important;
-  height: 100% !important;
+.mapping-layer__media {
   display: block;
+  object-fit: var(--mapping-fit, cover);
+  pointer-events: none;
 }
 
-.projection-point {
+.mapping-layer__fallback {
+  border-radius: 0;
+}
+
+.mapping-layer.is-selected .mapping-layer__overlay {
+  filter: drop-shadow(0 0 16px rgba(249, 115, 22, 0.32));
+}
+
+.mapping-stage__handle {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 34px;
-  height: 34px;
+  z-index: 4;
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: 999px;
   background: #f97316;
@@ -290,10 +339,6 @@ input[type="color"] {
 
 .inspector {
   overflow: auto;
-}
-
-.zoom-field {
-  min-width: 180px;
 }
 
 .footer-bar {
@@ -311,6 +356,74 @@ input[type="color"] {
 
 .projection-page__stage {
   padding: 0 1.5rem 1.5rem;
+}
+
+.projection-page__stage .stage-card {
+  min-height: calc(100vh - 160px);
+}
+
+.animation--pulse {
+  animation: mapping-pulse var(--mapping-duration) ease-in-out var(--mapping-delay) infinite;
+}
+
+.animation--drift {
+  animation: mapping-drift var(--mapping-duration) ease-in-out var(--mapping-delay) infinite;
+}
+
+.animation--rotate {
+  animation: mapping-rotate var(--mapping-duration) ease-in-out var(--mapping-delay) infinite;
+}
+
+.animation--strobe {
+  animation: mapping-strobe var(--mapping-duration) steps(2, end) var(--mapping-delay) infinite;
+}
+
+@keyframes mapping-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(calc(1 + var(--mapping-intensity) * 0.35));
+  }
+}
+
+@keyframes mapping-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(
+      calc(var(--mapping-intensity) * 36px),
+      calc(var(--mapping-intensity) * -24px)
+    );
+  }
+}
+
+@keyframes mapping-rotate {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  50% {
+    transform: rotate(calc(var(--mapping-intensity) * 24deg));
+  }
+}
+
+@keyframes mapping-strobe {
+  0%,
+  49% {
+    opacity: 0.25;
+  }
+
+  50%,
+  100% {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 1260px) {

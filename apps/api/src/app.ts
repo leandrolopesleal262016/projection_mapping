@@ -19,6 +19,14 @@ const animationSchema = z.object({
   delayMs: z.number().min(0)
 });
 
+const mediaSchema = z.object({
+  kind: z.enum(["none", "image", "video"]),
+  src: z.string().nullable(),
+  mimeType: z.string().optional(),
+  label: z.string().optional(),
+  objectFit: z.enum(["cover", "contain", "fill"])
+});
+
 const shapeSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -40,7 +48,8 @@ const shapeSchema = z.object({
   quad: z.tuple([pointSchema, pointSchema, pointSchema, pointSchema]),
   isCalibrated: z.boolean(),
   animation: animationSchema,
-  svgMarkup: z.string().optional()
+  svgMarkup: z.string().optional(),
+  media: mediaSchema
 });
 
 const sceneSchema: z.ZodType<ProjectScene> = z.object({
