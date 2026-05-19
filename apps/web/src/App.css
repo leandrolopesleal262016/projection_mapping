@@ -156,13 +156,13 @@
 .stage-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: 32px;
   border: 1px solid rgba(19, 42, 53, 0.14);
   border-radius: 999px;
-  padding: 0.3rem 0.8rem;
+  padding: 0.22rem 0.68rem;
   background: rgba(248, 250, 252, 0.92);
   color: #24424f;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
 }
 
 .stage-card__hint {
@@ -286,10 +286,10 @@ input[type="color"] {
 }
 
 .button--sm {
-  min-height: 36px;
-  border-radius: 12px;
-  padding: 0.55rem 0.8rem;
-  font-size: 0.86rem;
+  min-height: 32px;
+  border-radius: 10px;
+  padding: 0.42rem 0.68rem;
+  font-size: 0.8rem;
 }
 
 .button--danger {
@@ -321,56 +321,61 @@ input[type="color"] {
 }
 
 .panel--compact .panel__header h2 {
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .panel--compact .panel__header span,
 .panel--compact .field-hint,
 .panel--compact .empty-state {
-  font-size: 0.84rem;
+  font-size: 0.78rem;
 }
 
 .panel--compact .panel__group {
-  gap: 0.72rem;
-  margin-top: 0.85rem;
+  gap: 0.62rem;
+  margin-top: 0.75rem;
 }
 
 .panel--compact label {
-  gap: 0.35rem;
-  font-size: 0.84rem;
+  gap: 0.28rem;
+  font-size: 0.8rem;
 }
 
 .panel--compact input,
 .panel--compact select {
-  border-radius: 12px;
-  padding: 0.6rem 0.72rem;
-  font-size: 0.88rem;
+  border-radius: 10px;
+  padding: 0.48rem 0.58rem;
+  font-size: 0.82rem;
 }
 
 .panel--compact input[type="color"] {
-  min-height: 2.35rem;
-  padding: 0.2rem;
+  min-height: 2rem;
+  padding: 0.15rem;
+}
+
+.panel--compact input[type="range"] {
+  height: 0.9rem;
 }
 
 .panel--compact .button,
 .panel--compact .file-input {
-  min-height: 38px;
-  border-radius: 12px;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.87rem;
+  min-height: 32px;
+  border-radius: 10px;
+  padding: 0.46rem 0.62rem;
+  font-size: 0.8rem;
 }
 
 .panel--compact .project-list {
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .panel--compact .project-list__item {
-  padding: 0.72rem 0.8rem;
-  border-radius: 14px;
+  padding: 0.58rem 0.66rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
 }
 
 .panel--compact .inline-grid {
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .inspector {
@@ -388,7 +393,7 @@ input[type="color"] {
 }
 
 .mapping-stage__viewport.is-editable {
-  height: clamp(460px, 72vh, 860px);
+  height: clamp(420px, 68vh, 760px);
 }
 
 .mapping-stage__viewport.is-presentation {
@@ -649,6 +654,6 @@ input[type="color"] {
   }
 
   .mapping-stage__viewport.is-editable {
-    height: clamp(320px, 58vh, 640px);
+    height: clamp(300px, 54vh, 540px);
   }
 }

@@ -221,8 +221,10 @@ export function MappingStage({
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const zoomAnchorRef = useRef<ZoomAnchor | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [fitScale, setFitScale] = useState(1);
   const selectedShape = project.scene.shapes.find((shape) => shape.id === selectedShapeId) ?? null;
   const stageZoom = editable ? clamp(zoom, MIN_ZOOM, MAX_ZOOM) : 1;
+  const effectiveScale = editable ? fitScale * stageZoom : 1;
 
   useEffect(() => {
     if (!editable || !dragState || !onPointsChange || !surfaceRef.current) {
@@ -341,6 +343,40 @@ export function MappingStage({
     };
   }, [editable, onZoomChange, project.height, project.width, stageZoom]);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!editable || !viewport || typeof ResizeObserver === "undefined") {
+      setFitScale(1);
+      return;
+    }
+
+    const updateFitScale = () => {
+      const availableWidth = viewport.clientWidth;
+      const availableHeight = viewport.clientHeight;
+
+      if (!availableWidth || !availableHeight) {
+        return;
+      }
+
+      const nextFitScale = Math.min(1, (availableHeight * project.width) / (availableWidth * project.height));
+
+      setFitScale((current) => (Math.abs(current - nextFitScale) > 0.01 ? nextFitScale : current));
+    };
+
+    updateFitScale();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateFitScale();
+    });
+
+    resizeObserver.observe(viewport);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [editable, project.height, project.width]);
+
   return (
     <section className={`stage-card ${editable ? "stage-card--editor" : ""} ${showChrome ? "" : "stage-card--presentation"}`}>
       {showChrome ? (
@@ -386,7 +422,7 @@ export function MappingStage({
             style={{
               ["--stage-ratio" as string]: `${project.width / project.height}`,
               aspectRatio: `${project.width} / ${project.height}`,
-              width: editable ? `${stageZoom * 100}%` : "100%"
+              width: editable ? `${effectiveScale * 100}%` : "100%"
             }}
             onPointerDown={(event) => {
               if (
