@@ -299,6 +299,48 @@ export function MappingStage({
     zoomAnchorRef.current = null;
   }, [editable, project.height, project.width, stageZoom]);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!editable || !onZoomChange || !viewport) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if ((!event.ctrlKey && !event.metaKey) || !surfaceRef.current || !viewportRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const delta = event.deltaY < 0 ? 0.12 : -0.12;
+      const nextZoom = Number(clamp(stageZoom + delta, MIN_ZOOM, MAX_ZOOM).toFixed(2));
+
+      if (nextZoom === stageZoom) {
+        return;
+      }
+
+      const surfaceRect = surfaceRef.current.getBoundingClientRect();
+      const viewportRect = viewportRef.current.getBoundingClientRect();
+
+      zoomAnchorRef.current = {
+        pointX: clamp(((event.clientX - surfaceRect.left) / surfaceRect.width) * project.width, 0, project.width),
+        pointY: clamp(((event.clientY - surfaceRect.top) / surfaceRect.height) * project.height, 0, project.height),
+        offsetX: event.clientX - viewportRect.left,
+        offsetY: event.clientY - viewportRect.top
+      };
+
+      onZoomChange(nextZoom);
+    };
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      viewport.removeEventListener("wheel", handleWheel);
+    };
+  }, [editable, onZoomChange, project.height, project.width, stageZoom]);
+
   return (
     <section className={`stage-card ${editable ? "stage-card--editor" : ""} ${showChrome ? "" : "stage-card--presentation"}`}>
       {showChrome ? (
@@ -336,32 +378,6 @@ export function MappingStage({
       <div
         ref={viewportRef}
         className={`mapping-stage__viewport ${editable ? "is-editable" : ""} ${showChrome ? "" : "is-presentation"}`}
-        onWheel={(event) => {
-          if (!editable || !onZoomChange || !surfaceRef.current || !viewportRef.current) {
-            return;
-          }
-
-          event.preventDefault();
-
-          const delta = event.deltaY < 0 ? 0.12 : -0.12;
-          const nextZoom = Number(clamp(stageZoom + delta, MIN_ZOOM, MAX_ZOOM).toFixed(2));
-
-          if (nextZoom === stageZoom) {
-            return;
-          }
-
-          const surfaceRect = surfaceRef.current.getBoundingClientRect();
-          const viewportRect = viewportRef.current.getBoundingClientRect();
-
-          zoomAnchorRef.current = {
-            pointX: clamp(((event.clientX - surfaceRect.left) / surfaceRect.width) * project.width, 0, project.width),
-            pointY: clamp(((event.clientY - surfaceRect.top) / surfaceRect.height) * project.height, 0, project.height),
-            offsetX: event.clientX - viewportRect.left,
-            offsetY: event.clientY - viewportRect.top
-          };
-
-          onZoomChange(nextZoom);
-        }}
       >
         <div className="mapping-stage__canvas">
           <div
@@ -505,7 +521,7 @@ export function MappingStage({
       {showChrome ? (
         <div className="stage-card__hint">
           <span>Arraste a forma para mover. Arraste os pontos para deformar.</span>
-          <span>{editable ? "Scroll do mouse ajusta o zoom sem afetar a saida." : "Duplo clique em uma aresta cria um novo ponto no editor."}</span>
+          <span>{editable ? "Ctrl + scroll ajusta o zoom no ponto do cursor." : "Duplo clique em uma aresta cria um novo ponto no editor."}</span>
         </div>
       ) : null}
     </section>

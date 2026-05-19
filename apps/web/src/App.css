@@ -380,6 +380,7 @@ input[type="color"] {
 
 .mapping-stage__viewport {
   overflow: auto;
+  overscroll-behavior: contain;
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(14, 26, 35, 0.05), rgba(14, 26, 35, 0.02));
   box-shadow: inset 0 0 0 1px rgba(19, 42, 53, 0.08);
