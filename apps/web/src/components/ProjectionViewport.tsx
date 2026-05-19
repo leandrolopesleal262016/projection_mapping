@@ -49,7 +49,7 @@ function updateGeometryPositions(
 
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("uv", new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2));
-  geometry.setIndex([0, 1, 2, 0, 2, 3]);
+  geometry.setIndex([0, 2, 1, 0, 3, 2]);
   geometry.computeBoundingSphere();
 }
 
@@ -93,14 +93,16 @@ export function ProjectionViewport({
     }
 
     const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(0, project.width, project.height, 0, -1000, 1000);
+    const camera = new THREE.OrthographicCamera(0, project.width, project.height, 0, 0.1, 2000);
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false
     });
     const group = new THREE.Group();
 
+    camera.position.z = 10;
     renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     scene.add(group);
     runtimeRef.current = {
       scene,
@@ -217,7 +219,8 @@ export function ProjectionViewport({
           const material = new THREE.MeshBasicMaterial({
             map: texture,
             transparent: true,
-            opacity: shape.style.opacity
+            opacity: shape.style.opacity,
+            side: THREE.DoubleSide
           });
           const mesh = new THREE.Mesh(geometry, material);
 
