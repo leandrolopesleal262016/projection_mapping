@@ -491,29 +491,15 @@ export function EditorPage() {
         </div>
       </header>
 
-      <main className="workspace workspace--single-stage">
-        <section className="workspace__center workspace__center--primary">
-          <MappingStage
-            project={project}
-            selectedShapeId={selectedShapeId}
-            selectedPointIndex={selectedPointIndex}
-            editable
-            playbackMode={playbackMode}
-            zoom={stageZoom}
-            onSelectShape={handleSelectShape}
-            onSelectPoint={setSelectedPointIndex}
-            onTogglePlayback={handleTogglePlayback}
-            onZoomChange={setStageZoom}
-            onPointsChange={(shapeId: string, points: Point[]) => mutateShape(shapeId, (shape) => updateShapePoints(shape, points))}
-          />
-        </section>
-
-        <section className="workspace__bottom">
+      <main className="workspace workspace--studio">
+        <aside className="workspace__left">
           <ProjectSidebar
             currentProject={project}
             projects={projectList}
             activeProjectId={project.id}
+            selectedShapeId={selectedShapeId}
             onSelectProject={(projectId) => void openProject(projectId)}
+            onSelectShape={handleSelectShape}
             onCreateProject={handleCreateProject}
             onAddPolygon={() => {
               const shape = createPolygonDraft(project.scene);
@@ -530,7 +516,25 @@ export function EditorPage() {
             onImportProjectFile={handleImportProjectFile}
             onExportProject={handleExportProject}
           />
+        </aside>
 
+        <section className="workspace__center workspace__center--primary">
+          <MappingStage
+            project={project}
+            selectedShapeId={selectedShapeId}
+            selectedPointIndex={selectedPointIndex}
+            editable
+            playbackMode={playbackMode}
+            zoom={stageZoom}
+            onSelectShape={handleSelectShape}
+            onSelectPoint={setSelectedPointIndex}
+            onTogglePlayback={handleTogglePlayback}
+            onZoomChange={setStageZoom}
+            onPointsChange={(shapeId: string, points: Point[]) => mutateShape(shapeId, (shape) => updateShapePoints(shape, points))}
+          />
+        </section>
+
+        <aside className="workspace__right">
           <InspectorPanel
             shape={selectedShape}
             onRename={(name) => selectedShape && mutateShape(selectedShape.id, (shape) => ({ ...shape, name }))}
@@ -554,15 +558,36 @@ export function EditorPage() {
             onClearMedia={() => selectedShape && mutateShape(selectedShape.id, (shape) => clearShapeMedia(shape))}
             onDelete={handleDeleteSelection}
           />
+        </aside>
+
+        <section className="workspace__dock">
+          <div className="dock-group">
+            <span className="dock-group__label">Projeto</span>
+            <span className="dock-chip">
+              {project.width} x {project.height}
+            </span>
+            <span className="dock-chip">{project.scene.shapes.length} superficies</span>
+          </div>
+          <div className="dock-group">
+            <span className="dock-group__label">Selecao</span>
+            <span className="dock-chip">{selectedShape?.name ?? "nenhuma"}</span>
+            <span className="dock-chip">
+              {selectedPointIndex !== null ? `ponto ${selectedPointIndex + 1}` : "forma"}
+            </span>
+          </div>
+          <div className="dock-group">
+            <span className="dock-group__label">Atalhos</span>
+            <span className="dock-chip">Delete remove</span>
+            <span className="dock-chip">Ctrl+Z desfaz</span>
+            <span className="dock-chip">Ctrl+scroll zoom</span>
+          </div>
+          <div className="dock-group dock-group--status">
+            <span className="dock-group__label">Status</span>
+            <span className="dock-chip">{playbackMode === "play" ? "videos ativos" : "videos pausados"}</span>
+            <span className="dock-chip">save {formatSavedAt(project.updatedAt)}</span>
+          </div>
         </section>
       </main>
-
-      <footer className="footer-bar">
-        <span>
-          Projeto ativo: {project.id} | poligonos: {project.scene.shapes.length}
-        </span>
-        <span>ultimo save confirmado: {formatSavedAt(project.updatedAt)}</span>
-      </footer>
     </div>
   );
 }
