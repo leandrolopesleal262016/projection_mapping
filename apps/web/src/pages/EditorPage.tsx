@@ -360,6 +360,52 @@ export function EditorPage() {
     commitScene(cloneProjectWithScene(project, nextScene), "Forma removida. Ctrl+Z desfaz.");
   }
 
+  function handleAddPolygon() {
+    if (!project) {
+      return;
+    }
+
+    const shape = createPolygonDraft(project.scene);
+    const nextScene = {
+      ...project.scene,
+      shapes: [...project.scene.shapes, shape]
+    };
+
+    setSelectedShapeId(shape.id);
+    setSelectedPointIndex(null);
+    commitScene(cloneProjectWithScene(project, nextScene), "Poligono criado.");
+  }
+
+  async function handleCreateShapeFromMedia(file: File) {
+    if (!project) {
+      return;
+    }
+
+    const media = await createMediaFromFile(file);
+    const shape = createPolygonDraft(project.scene, media);
+    shape.name = file.name.replace(/\.[^.]+$/i, "");
+
+    const nextScene = {
+      ...project.scene,
+      shapes: [...project.scene.shapes, shape]
+    };
+
+    setSelectedShapeId(shape.id);
+    setSelectedPointIndex(null);
+    commitScene(cloneProjectWithScene(project, nextScene), "Forma com midia criada.");
+  }
+
+  async function handleApplyMediaToSelectedShape(file: File) {
+    if (!selectedShape) {
+      setStatus("Selecione uma forma antes de aplicar a midia.");
+      return;
+    }
+
+    const media = await createMediaFromFile(file);
+    mutateShape(selectedShape.id, (shape) => updateShapeMedia(shape, media));
+    setStatus("Midia aplicada na forma selecionada.");
+  }
+
   async function handleCreateProject(payload: { name: string; width: number; height: number }) {
     setStatus("Criando projeto...");
 
@@ -433,23 +479,25 @@ export function EditorPage() {
           <h1>{project.name}</h1>
         </div>
         <div className="topbar__actions">
-          <button
-            type="button"
-            className="button"
-            onClick={() => {
-              const shape = createPolygonDraft(project.scene);
-              const nextScene = {
-                ...project.scene,
-                shapes: [...project.scene.shapes, shape]
-              };
-
-              setSelectedShapeId(shape.id);
-              setSelectedPointIndex(null);
-              commitScene(cloneProjectWithScene(project, nextScene));
-            }}
-          >
+          <button type="button" className="button" onClick={handleAddPolygon}>
             Novo poligono
           </button>
+          <label className="file-input">
+            Nova forma com midia
+            <input
+              type="file"
+              accept="image/*,image/gif,video/*,.svg,image/svg+xml"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+
+                if (file) {
+                  void handleCreateShapeFromMedia(file);
+                }
+
+                event.target.value = "";
+              }}
+            />
+          </label>
           <Link className="button button--primary" to={`/projection/${project.id}`} target="_blank" rel="noreferrer">
             Abrir saida
           </Link>
@@ -463,8 +511,12 @@ export function EditorPage() {
             currentProject={project}
             projects={projectList}
             activeProjectId={project.id}
+            selectedShapeName={selectedShape?.name ?? null}
             onSelectProject={(projectId) => void openProject(projectId)}
             onCreateProject={handleCreateProject}
+            onAddPolygon={handleAddPolygon}
+            onCreateShapeFromMedia={handleCreateShapeFromMedia}
+            onApplyMediaToSelectedShape={handleApplyMediaToSelectedShape}
           />
         </aside>
 

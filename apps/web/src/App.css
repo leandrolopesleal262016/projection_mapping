@@ -316,6 +316,11 @@ input[type="color"] {
   cursor: pointer;
 }
 
+.button--block,
+.file-input--block {
+  width: 100%;
+}
+
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -351,6 +356,12 @@ input[type="color"] {
 .file-input {
   position: relative;
   overflow: hidden;
+}
+
+.file-input.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .file-input input {

@@ -45,7 +45,8 @@ export function InspectorPanel({
           <span>selecione uma superficie</span>
         </div>
         <p className="empty-state">
-          Escolha uma forma no palco para editar geometria, midia e animacao.
+          Escolha uma forma no palco para editar geometria, midia e animacao. Se ainda nao existir uma forma, use o painel
+          Inserir.
         </p>
       </section>
     );
