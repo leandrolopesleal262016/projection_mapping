@@ -5,6 +5,7 @@ import type {
   MediaFit,
   Point,
   ProjectRecord,
+  ProjectScene,
   ProjectSummary,
   Shape,
   ShapeStyle
@@ -31,6 +32,12 @@ import {
 } from "../lib/scene-utils";
 import { getSocket } from "../lib/socket";
 
+interface RemovalUndoEntry {
+  scene: ProjectScene;
+  selectedShapeId: string | null;
+  selectedPointIndex: number | null;
+}
+
 function formatSavedAt(value: string | null): string {
   if (!value) {
     return "aguardando primeiro save";
@@ -47,15 +54,33 @@ function estimatePayloadBytes(value: unknown): number {
   return new Blob([JSON.stringify(value)]).size;
 }
 
+function cloneSceneSnapshot(scene: ProjectScene): ProjectScene {
+  if (typeof structuredClone === "function") {
+    return structuredClone(scene);
+  }
+
+  return JSON.parse(JSON.stringify(scene)) as ProjectScene;
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
 export function EditorPage() {
   const [projectList, setProjectList] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
   const [playbackMode, setPlaybackMode] = useState<"play" | "stop">("play");
   const [stageZoom, setStageZoom] = useState(1);
   const [status, setStatus] = useState("Carregando projetos...");
   const [isLoading, setIsLoading] = useState(true);
   const saveTimerRef = useRef<number | null>(null);
+  const removalUndoRef = useRef<RemovalUndoEntry[]>([]);
   const socketRef = useRef(getSocket());
   const realtimeChannelRef = useRef(getRealtimeChannel());
 
@@ -81,10 +106,12 @@ export function EditorPage() {
 
           setProject(loadedProject);
           setSelectedShapeId(loadedProject.scene.shapes[0]?.id ?? null);
+          setSelectedPointIndex(null);
           setStageZoom(1);
+          removalUndoRef.current = [];
           setStatus("Projeto carregado.");
         } else {
-          setStatus("Nenhum projeto disponível.");
+          setStatus("Nenhum projeto disponivel.");
         }
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "Falha ao carregar.");
@@ -122,6 +149,26 @@ export function EditorPage() {
 
   const selectedShape = project?.scene.shapes.find((shape) => shape.id === selectedShapeId) ?? null;
 
+  useEffect(() => {
+    if (!selectedShape) {
+      if (selectedPointIndex !== null) {
+        setSelectedPointIndex(null);
+      }
+
+      return;
+    }
+
+    if (selectedPointIndex === null) {
+      return;
+    }
+
+    const totalPoints = selectedShape.points?.length ?? 0;
+
+    if (selectedPointIndex >= totalPoints) {
+      setSelectedPointIndex(totalPoints > 0 ? totalPoints - 1 : null);
+    }
+  }, [selectedPointIndex, selectedShape]);
+
   async function openProject(projectId: string) {
     setIsLoading(true);
     setStatus("Carregando projeto...");
@@ -131,8 +178,10 @@ export function EditorPage() {
 
       setProject(loadedProject);
       setSelectedShapeId(loadedProject.scene.shapes[0]?.id ?? null);
+      setSelectedPointIndex(null);
       setStageZoom(1);
-      setStatus("Projeto pronto para edição.");
+      removalUndoRef.current = [];
+      setStatus("Projeto pronto para edicao.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Falha ao abrir projeto.");
     } finally {
@@ -175,13 +224,13 @@ export function EditorPage() {
     }
   }
 
-  function queueSave(nextProject: ProjectRecord) {
+  function queueSave(nextProject: ProjectRecord, pendingStatus = "Alteracoes pendentes...") {
     if (saveTimerRef.current) {
       window.clearTimeout(saveTimerRef.current);
     }
 
     announceProjectState(nextProject);
-    setStatus("Alterações pendentes...");
+    setStatus(pendingStatus);
 
     saveTimerRef.current = window.setTimeout(async () => {
       try {
@@ -202,16 +251,85 @@ export function EditorPage() {
         );
         updateProjectSummary(savedProject);
         announceProjectState(savedProject);
-        setStatus(`Salvo às ${formatSavedAt(savedProject.updatedAt)}`);
+        setStatus(`Salvo as ${formatSavedAt(savedProject.updatedAt)}`);
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "Falha ao salvar.");
       }
     }, 450);
   }
 
-  function commitScene(nextProject: ProjectRecord) {
+  function commitScene(nextProject: ProjectRecord, pendingStatus?: string) {
     setProject(nextProject);
-    queueSave(nextProject);
+    queueSave(nextProject, pendingStatus);
+  }
+
+  function rememberRemoval() {
+    if (!project) {
+      return;
+    }
+
+    removalUndoRef.current = [
+      ...removalUndoRef.current.slice(-29),
+      {
+        scene: cloneSceneSnapshot(project.scene),
+        selectedShapeId,
+        selectedPointIndex
+      }
+    ];
+  }
+
+  function handleSelectShape(shapeId: string | null) {
+    setSelectedShapeId(shapeId);
+    setSelectedPointIndex(null);
+  }
+
+  function handleUndoRemoval() {
+    if (!project) {
+      return;
+    }
+
+    const snapshot = removalUndoRef.current.pop();
+
+    if (!snapshot) {
+      setStatus("Nada para desfazer.");
+      return;
+    }
+
+    setSelectedShapeId(snapshot.selectedShapeId);
+    setSelectedPointIndex(snapshot.selectedPointIndex);
+    commitScene(cloneProjectWithScene(project, snapshot.scene), "Remocao desfeita. Salvando...");
+  }
+
+  function handleDeleteSelection() {
+    if (!project || !selectedShape) {
+      return;
+    }
+
+    if (selectedPointIndex !== null) {
+      const points = selectedShape.points ?? [];
+
+      if (points.length <= 3) {
+        setStatus("O poligono precisa manter pelo menos 3 pontos.");
+        return;
+      }
+
+      rememberRemoval();
+
+      const nextPoints = points.filter((_, index) => index !== selectedPointIndex);
+      const nextScene = updateShapeInScene(project.scene, selectedShape.id, (shape) => updateShapePoints(shape, nextPoints));
+
+      setSelectedPointIndex(Math.min(selectedPointIndex, nextPoints.length - 1));
+      commitScene(cloneProjectWithScene(project, nextScene), "Ponto removido. Ctrl+Z desfaz.");
+      return;
+    }
+
+    rememberRemoval();
+
+    const nextScene = removeShapeFromScene(project.scene, selectedShape.id);
+
+    setSelectedShapeId(nextScene.shapes[0]?.id ?? null);
+    setSelectedPointIndex(null);
+    commitScene(cloneProjectWithScene(project, nextScene), "Forma removida. Ctrl+Z desfaz.");
   }
 
   async function handleCreateProject(payload: { name: string; width: number; height: number }) {
@@ -221,7 +339,9 @@ export function EditorPage() {
     updateProjectSummary(createdProject);
     setProject(createdProject);
     setSelectedShapeId(createdProject.scene.shapes[0]?.id ?? null);
+    setSelectedPointIndex(null);
     setStageZoom(1);
+    removalUndoRef.current = [];
     setStatus("Projeto criado.");
   }
 
@@ -249,6 +369,7 @@ export function EditorPage() {
     };
 
     setSelectedShapeId(shape.id);
+    setSelectedPointIndex(null);
     commitScene(cloneProjectWithScene(project, nextScene));
   }
 
@@ -259,7 +380,9 @@ export function EditorPage() {
     updateProjectSummary(imported);
     setProject(imported);
     setSelectedShapeId(imported.scene.shapes[0]?.id ?? null);
+    setSelectedPointIndex(null);
     setStageZoom(1);
+    removalUndoRef.current = [];
     setStatus("Projeto importado.");
   }
 
@@ -281,6 +404,31 @@ export function EditorPage() {
     URL.revokeObjectURL(url);
     setStatus("Projeto exportado.");
   }
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "Delete") {
+        event.preventDefault();
+        handleDeleteSelection();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        handleUndoRemoval();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [project, selectedPointIndex, selectedShape]);
 
   if (!project) {
     return (
@@ -306,7 +454,7 @@ export function EditorPage() {
         </div>
         <div className="topbar__actions">
           <Link className="button button--primary" to={`/projection/${project.id}`} target="_blank" rel="noreferrer">
-            Abrir saída
+            Abrir saida
           </Link>
           <span className="status-pill">{status}</span>
         </div>
@@ -317,10 +465,12 @@ export function EditorPage() {
           <MappingStage
             project={project}
             selectedShapeId={selectedShapeId}
+            selectedPointIndex={selectedPointIndex}
             editable
             playbackMode={playbackMode}
             zoom={stageZoom}
-            onSelectShape={setSelectedShapeId}
+            onSelectShape={handleSelectShape}
+            onSelectPoint={setSelectedPointIndex}
             onTogglePlayback={() => setPlaybackMode((current) => (current === "play" ? "stop" : "play"))}
             onZoomChange={setStageZoom}
             onPointsChange={(shapeId: string, points: Point[]) => mutateShape(shapeId, (shape) => updateShapePoints(shape, points))}
@@ -342,6 +492,7 @@ export function EditorPage() {
               };
 
               setSelectedShapeId(shape.id);
+              setSelectedPointIndex(null);
               commitScene(cloneProjectWithScene(project, nextScene));
             }}
             onCreateShapeFromMedia={handleCreateShapeFromMedia}
@@ -370,26 +521,16 @@ export function EditorPage() {
               selectedShape && mutateShape(selectedShape.id, (shape) => updateShapeFit(shape, fit))
             }
             onClearMedia={() => selectedShape && mutateShape(selectedShape.id, (shape) => clearShapeMedia(shape))}
-            onDelete={() => {
-              if (!selectedShape) {
-                return;
-              }
-
-              const nextScene = removeShapeFromScene(project.scene, selectedShape.id);
-              const nextSelectedId = nextScene.shapes[0]?.id ?? null;
-
-              setSelectedShapeId(nextSelectedId);
-              commitScene(cloneProjectWithScene(project, nextScene));
-            }}
+            onDelete={handleDeleteSelection}
           />
         </section>
       </main>
 
       <footer className="footer-bar">
         <span>
-          Projeto ativo: {project.id} | polígonos: {project.scene.shapes.length}
+          Projeto ativo: {project.id} | poligonos: {project.scene.shapes.length}
         </span>
-        <span>último save confirmado: {formatSavedAt(project.updatedAt)}</span>
+        <span>ultimo save confirmado: {formatSavedAt(project.updatedAt)}</span>
       </footer>
     </div>
   );

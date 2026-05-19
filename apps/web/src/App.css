@@ -115,6 +115,17 @@
   padding: 0.85rem;
 }
 
+.stage-card--presentation {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .panel__header,
 .stage-card__meta,
 .stage-card__hint {
@@ -379,9 +390,30 @@ input[type="color"] {
   height: clamp(460px, 72vh, 860px);
 }
 
+.mapping-stage__viewport.is-presentation {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  background: #000000;
+  box-shadow: none;
+  padding: 0;
+}
+
 .mapping-stage__canvas {
   min-width: 100%;
   min-height: 100%;
+}
+
+.mapping-stage__viewport.is-presentation .mapping-stage__canvas {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .mapping-stage {
@@ -393,12 +425,27 @@ input[type="color"] {
   margin: 0 auto;
 }
 
+.mapping-stage__viewport.is-presentation .mapping-stage {
+  width: min(100vw, calc(100vh * var(--stage-ratio)));
+  height: min(100vh, calc(100vw / var(--stage-ratio)));
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  background: #000000;
+  box-shadow: none;
+}
+
 .mapping-stage__surface {
   position: absolute;
   inset: 0;
   overflow: hidden;
   border-radius: 22px;
   box-shadow: 0 28px 60px rgba(6, 24, 37, 0.24);
+}
+
+.mapping-stage__viewport.is-presentation .mapping-stage__surface {
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .mapping-layer {
@@ -467,6 +514,13 @@ input[type="color"] {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 
+.mapping-stage__handle.is-active {
+  width: 14px;
+  height: 14px;
+  border-width: 3px;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18), 0 6px 16px rgba(0, 0, 0, 0.34);
+}
+
 .footer-bar {
   color: #47616f;
   font-size: 0.92rem;
@@ -486,6 +540,19 @@ input[type="color"] {
 
 .projection-page__stage .stage-card {
   min-height: calc(100vh - 160px);
+}
+
+.projection-page--live {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000000;
+}
+
+.projection-page__blank {
+  width: 100%;
+  height: 100%;
+  background: #000000;
 }
 
 .animation--pulse {

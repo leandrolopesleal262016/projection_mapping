@@ -14,10 +14,14 @@ import { clampPointToStage } from "../lib/scene-utils";
 interface MappingStageProps {
   project: ProjectRecord;
   selectedShapeId: string | null;
+  selectedPointIndex?: number | null;
   editable?: boolean;
   playbackMode?: "play" | "stop";
+  showChrome?: boolean;
+  surfaceBackground?: string;
   zoom?: number;
   onSelectShape?: (shapeId: string | null) => void;
+  onSelectPoint?: (pointIndex: number | null) => void;
   onPointsChange?: (shapeId: string, points: Point[]) => void;
   onTogglePlayback?: () => void;
   onZoomChange?: (zoom: number) => void;
@@ -201,10 +205,14 @@ function renderMedia(shape: Shape, playbackMode: "play" | "stop") {
 export function MappingStage({
   project,
   selectedShapeId,
+  selectedPointIndex = null,
   editable = false,
   playbackMode = "play",
+  showChrome = true,
+  surfaceBackground,
   zoom = 1,
   onSelectShape,
+  onSelectPoint,
   onPointsChange,
   onTogglePlayback,
   onZoomChange
@@ -292,40 +300,42 @@ export function MappingStage({
   }, [editable, project.height, project.width, stageZoom]);
 
   return (
-    <section className={`stage-card ${editable ? "stage-card--editor" : ""}`}>
-      <div className="stage-card__meta">
-        <div>
-          <strong>Palco de mapping</strong>
-          <p>Insira, arraste e ajuste os pontos diretamente aqui.</p>
-        </div>
-        <div className="stage-card__controls">
-          {editable && onTogglePlayback ? (
-            <button type="button" className="button button--ghost button--sm" onClick={onTogglePlayback}>
-              {playbackMode === "play" ? "Parar videos" : "Reproduzir videos"}
-            </button>
-          ) : null}
-          {editable && onZoomChange ? (
-            <>
-              <span className="stage-chip">Zoom {Math.round(stageZoom * 100)}%</span>
-              <button
-                type="button"
-                className="button button--ghost button--sm"
-                disabled={stageZoom === 1}
-                onClick={() => onZoomChange(1)}
-              >
-                Resetar zoom
+    <section className={`stage-card ${editable ? "stage-card--editor" : ""} ${showChrome ? "" : "stage-card--presentation"}`}>
+      {showChrome ? (
+        <div className="stage-card__meta">
+          <div>
+            <strong>Palco de mapping</strong>
+            <p>Insira, arraste e ajuste os pontos diretamente aqui.</p>
+          </div>
+          <div className="stage-card__controls">
+            {editable && onTogglePlayback ? (
+              <button type="button" className="button button--ghost button--sm" onClick={onTogglePlayback}>
+                {playbackMode === "play" ? "Parar videos" : "Reproduzir videos"}
               </button>
-            </>
-          ) : null}
-          <span>
-            {project.width} x {project.height}
-          </span>
+            ) : null}
+            {editable && onZoomChange ? (
+              <>
+                <span className="stage-chip">Zoom {Math.round(stageZoom * 100)}%</span>
+                <button
+                  type="button"
+                  className="button button--ghost button--sm"
+                  disabled={stageZoom === 1}
+                  onClick={() => onZoomChange(1)}
+                >
+                  Resetar zoom
+                </button>
+              </>
+            ) : null}
+            <span>
+              {project.width} x {project.height}
+            </span>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div
         ref={viewportRef}
-        className={`mapping-stage__viewport ${editable ? "is-editable" : ""}`}
+        className={`mapping-stage__viewport ${editable ? "is-editable" : ""} ${showChrome ? "" : "is-presentation"}`}
         onWheel={(event) => {
           if (!editable || !onZoomChange || !surfaceRef.current || !viewportRef.current) {
             return;
@@ -358,8 +368,9 @@ export function MappingStage({
             ref={surfaceRef}
             className={`mapping-stage ${editable ? "is-editable" : ""}`}
             style={{
+              ["--stage-ratio" as string]: `${project.width / project.height}`,
               aspectRatio: `${project.width} / ${project.height}`,
-              width: `${stageZoom * 100}%`
+              width: editable ? `${stageZoom * 100}%` : "100%"
             }}
             onPointerDown={(event) => {
               if (
@@ -367,10 +378,11 @@ export function MappingStage({
                 (event.target as HTMLElement).classList.contains("mapping-stage__surface")
               ) {
                 onSelectShape?.(null);
+                onSelectPoint?.(null);
               }
             }}
           >
-            <div className="mapping-stage__surface" style={{ background: project.scene.background }}>
+            <div className="mapping-stage__surface" style={{ background: surfaceBackground ?? project.scene.background }}>
               {project.scene.shapes.map((shape) => {
                 const points = shape.points ?? [];
                 const media = shape.media ?? DEFAULT_MEDIA;
@@ -401,6 +413,7 @@ export function MappingStage({
 
                         event.stopPropagation();
                         onSelectShape?.(shape.id);
+                        onSelectPoint?.(null);
 
                         const rect = surfaceRef.current.getBoundingClientRect();
 
@@ -431,6 +444,7 @@ export function MappingStage({
                         nextPoints.splice(insertion.segmentIndex + 1, 0, insertion.point);
                         onPointsChange(shape.id, nextPoints);
                         onSelectShape?.(shape.id);
+                        onSelectPoint?.(insertion.segmentIndex + 1);
                       }}
                     />
 
@@ -467,12 +481,13 @@ export function MappingStage({
                     <button
                       key={`${selectedShape.id}-${index}`}
                       type="button"
-                      className="mapping-stage__handle"
+                      className={`mapping-stage__handle ${selectedPointIndex === index ? "is-active" : ""}`}
                       aria-label={`Mover ponto ${index + 1}`}
                       style={stagePointToCss(point, project)}
                       onPointerDown={(event) => {
                         event.stopPropagation();
                         onSelectShape?.(selectedShape.id);
+                        onSelectPoint?.(index);
                         setDragState({
                           mode: "point",
                           shapeId: selectedShape.id,
@@ -487,10 +502,12 @@ export function MappingStage({
         </div>
       </div>
 
-      <div className="stage-card__hint">
-        <span>Arraste a forma para mover. Arraste os pontos para deformar.</span>
-        <span>{editable ? "Scroll do mouse ajusta o zoom sem afetar a saida." : "Duplo clique em uma aresta cria um novo ponto no editor."}</span>
-      </div>
+      {showChrome ? (
+        <div className="stage-card__hint">
+          <span>Arraste a forma para mover. Arraste os pontos para deformar.</span>
+          <span>{editable ? "Scroll do mouse ajusta o zoom sem afetar a saida." : "Duplo clique em uma aresta cria um novo ponto no editor."}</span>
+        </div>
+      ) : null}
     </section>
   );
 }

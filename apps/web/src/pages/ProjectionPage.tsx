@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import type { ProjectRecord } from "@projection-mapping/shared";
 
@@ -12,7 +12,6 @@ import { getSocket } from "../lib/socket";
 export function ProjectionPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState<ProjectRecord | null>(null);
-  const [status, setStatus] = useState("Carregando saída...");
 
   function applyIncomingState(payload: ProjectionStatePayload, currentProjectId: string) {
     if (payload.projectId !== currentProjectId) {
@@ -28,12 +27,10 @@ export function ProjectionPage() {
           })
         : current
     );
-    setStatus("Saída atualizada em tempo real.");
   }
 
   useEffect(() => {
     if (!projectId) {
-      setStatus("Projeto inválido.");
       return;
     }
 
@@ -46,11 +43,10 @@ export function ProjectionPage() {
 
         if (!ignore) {
           setProject(loaded);
-          setStatus("Saída sincronizada.");
         }
-      } catch (error) {
+      } catch {
         if (!ignore) {
-          setStatus(error instanceof Error ? error.message : "Falha ao carregar saída.");
+          setProject(null);
         }
       }
     }
@@ -92,37 +88,18 @@ export function ProjectionPage() {
     };
   }, [projectId]);
 
-  if (!project) {
-    return (
-      <div className="projection-page">
-        <header className="projection-page__header">
-          <Link className="button" to="/">
-            Voltar ao editor
-          </Link>
-          <span className="status-pill">{status}</span>
-        </header>
-        <main className="projection-page__empty">Aguardando projeto.</main>
-      </div>
-    );
-  }
-
   return (
-    <div className="projection-page">
-      <header className="projection-page__header">
-        <div>
-          <p className="eyebrow">Saída dedicada</p>
-          <h1>{project.name}</h1>
-        </div>
-        <div className="topbar__actions">
-          <Link className="button" to="/">
-            Voltar ao editor
-          </Link>
-          <span className="status-pill">{status}</span>
-        </div>
-      </header>
-      <main className="projection-page__stage">
-        <MappingStage project={project} selectedShapeId={null} />
-      </main>
+    <div className="projection-page projection-page--live">
+      {project ? (
+        <MappingStage
+          project={project}
+          selectedShapeId={null}
+          showChrome={false}
+          surfaceBackground="#000000"
+        />
+      ) : (
+        <main className="projection-page__blank" />
+      )}
     </div>
   );
 }
