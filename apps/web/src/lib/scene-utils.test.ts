@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { translatePoints } from "@projection-mapping/shared";
-
 import { createPolygonDraft, updateShapeMedia, updateShapePoints } from "./scene-utils";
 
-describe("scene utils media frame", () => {
-  it("keeps the cover frame stable while polygon handles deform the shape", () => {
+describe("scene utils media behavior", () => {
+  it("does not create extra frame metadata when media is applied", () => {
     const shape = updateShapeMedia(createPolygonDraft({ background: "#000", shapes: [] }), {
       kind: "image",
       src: "data:image/png;base64,AAAA",
@@ -13,20 +11,11 @@ describe("scene utils media frame", () => {
       label: "sample",
       objectFit: "cover"
     });
-    const originalFrame = shape.media.frame;
-    const nextPoints = [...(shape.points ?? [])];
 
-    nextPoints[0] = {
-      x: nextPoints[0].x + 64,
-      y: nextPoints[0].y + 18
-    };
-
-    const updatedShape = updateShapePoints(shape, nextPoints);
-
-    expect(updatedShape.media.frame).toEqual(originalFrame);
+    expect(shape.media.frame).toBeUndefined();
   });
 
-  it("moves the cover frame together with the polygon on full-shape translations", () => {
+  it("keeps media attached when polygon points are edited", () => {
     const shape = updateShapeMedia(createPolygonDraft({ background: "#000", shapes: [] }), {
       kind: "image",
       src: "data:image/png;base64,BBBB",
@@ -34,15 +23,16 @@ describe("scene utils media frame", () => {
       label: "sample",
       objectFit: "cover"
     });
-    const translatedPoints = translatePoints(shape.points ?? [], 48, 22);
+    const nextPoints = [...(shape.points ?? [])];
 
-    const updatedShape = updateShapePoints(shape, translatedPoints);
+    nextPoints[1] = {
+      x: nextPoints[1].x + 24,
+      y: nextPoints[1].y + 12
+    };
 
-    expect(updatedShape.media.frame).toMatchObject({
-      x: (shape.media.frame?.x ?? 0) + 48,
-      y: (shape.media.frame?.y ?? 0) + 22,
-      width: shape.media.frame?.width,
-      height: shape.media.frame?.height
-    });
+    const updatedShape = updateShapePoints(shape, nextPoints);
+
+    expect(updatedShape.media.src).toBe("data:image/png;base64,BBBB");
+    expect(updatedShape.media.frame).toBeUndefined();
   });
 });

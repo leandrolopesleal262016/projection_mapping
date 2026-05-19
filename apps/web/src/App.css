@@ -600,14 +600,6 @@ input[type="color"] {
   pointer-events: none;
 }
 
-.mapping-stage__media-frame {
-  position: absolute;
-  z-index: 1;
-  overflow: hidden;
-  pointer-events: none;
-  transform-origin: center;
-}
-
 .mapping-layer__media,
 .mapping-layer__fallback {
   width: 100%;

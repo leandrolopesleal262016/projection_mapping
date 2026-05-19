@@ -1,4 +1,4 @@
-import { Fragment, type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 import {
   DEFAULT_MEDIA,
@@ -83,23 +83,8 @@ function clipPathFromRelativePoints(points: Point[], width: number, height: numb
     .join(", ")})`;
 }
 
-function clipPathFromStagePoints(points: Point[], project: ProjectRecord): string {
-  return `polygon(${points
-    .map((point) => `${(point.x / project.width) * 100}% ${(point.y / project.height) * 100}%`)
-    .join(", ")})`;
-}
-
 function svgPointsString(points: Point[]): string {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
-}
-
-function frameStyle(frame: { x: number; y: number; width: number; height: number }, project: ProjectRecord): CSSProperties {
-  return {
-    left: `${(frame.x / project.width) * 100}%`,
-    top: `${(frame.y / project.height) * 100}%`,
-    width: `${(frame.width / project.width) * 100}%`,
-    height: `${(frame.height / project.height) * 100}%`
-  };
 }
 
 function toStagePoint(
@@ -513,97 +498,92 @@ export function MappingStage({
             <div className="mapping-stage__surface" style={{ background: surfaceBackground ?? project.scene.background }}>
               {project.scene.shapes.map((shape) => {
                 const points = shape.points ?? [];
-                const media = shape.media ?? DEFAULT_MEDIA;
                 const bounds = getPointsBounds(points);
                 const relativePoints = relativePolygon(points, bounds);
                 const polygonClipPath = clipPathFromRelativePoints(relativePoints, bounds.width, bounds.height);
-                const stageClipPath = clipPathFromStagePoints(points, project);
-                const mediaFrame = media.objectFit === "cover" ? media.frame ?? bounds : bounds;
                 const selected = shape.id === selectedShapeId;
 
                 return (
-                  <Fragment key={shape.id}>
+                  <div
+                    key={shape.id}
+                    className={`mapping-layer ${selected ? "is-selected" : ""}`}
+                    style={{
+                      left: `${(bounds.x / project.width) * 100}%`,
+                      top: `${(bounds.y / project.height) * 100}%`,
+                      width: `${(bounds.width / project.width) * 100}%`,
+                      height: `${(bounds.height / project.height) * 100}%`
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="mapping-layer__hit"
+                      style={{ clipPath: polygonClipPath }}
+                      onPointerDown={(event) => {
+                        if (!editable || !shape.points || !surfaceRef.current || event.button !== 0) {
+                          return;
+                        }
+
+                        event.stopPropagation();
+                        onSelectShape?.(shape.id);
+                        onSelectPoint?.(null);
+
+                        const rect = surfaceRef.current.getBoundingClientRect();
+
+                        setDragState({
+                          mode: "shape",
+                          shapeId: shape.id,
+                          start: toStagePoint(event.clientX, event.clientY, rect, project),
+                          originPoints: [...shape.points]
+                        });
+                      }}
+                      onDoubleClick={(event) => {
+                        if (!editable || !shape.points || !onPointsChange || !surfaceRef.current) {
+                          return;
+                        }
+
+                        event.stopPropagation();
+
+                        const rect = surfaceRef.current.getBoundingClientRect();
+                        const stagePoint = toStagePoint(event.clientX, event.clientY, rect, project);
+                        const threshold = 18 / (rect.width / project.width);
+                        const insertion = findInsertion(shape.points, stagePoint, threshold);
+
+                        if (!insertion) {
+                          return;
+                        }
+
+                        const nextPoints = [...shape.points];
+                        nextPoints.splice(insertion.segmentIndex + 1, 0, insertion.point);
+                        onPointsChange(shape.id, nextPoints);
+                        onSelectShape?.(shape.id);
+                        onSelectPoint?.(insertion.segmentIndex + 1);
+                      }}
+                    />
+
                     <div
-                      className={`mapping-stage__media-frame animation--${shape.animation.type}`}
+                      className={`mapping-layer__content animation--${shape.animation.type}`}
                       style={{
-                        ...frameStyle(mediaFrame, project),
-                        clipPath: stageClipPath,
+                        clipPath: polygonClipPath,
                         ...animationStyle(shape)
                       }}
                     >
                       {renderMedia(shape, playbackMode)}
                     </div>
 
-                    <div
-                      className={`mapping-layer ${selected ? "is-selected" : ""}`}
-                      style={{
-                        left: `${(bounds.x / project.width) * 100}%`,
-                        top: `${(bounds.y / project.height) * 100}%`,
-                        width: `${(bounds.width / project.width) * 100}%`,
-                        height: `${(bounds.height / project.height) * 100}%`
-                      }}
+                    <svg
+                      className="mapping-layer__overlay"
+                      viewBox={`0 0 ${bounds.width} ${bounds.height}`}
+                      preserveAspectRatio="none"
                     >
-                      <button
-                        type="button"
-                        className="mapping-layer__hit"
-                        style={{ clipPath: polygonClipPath }}
-                        onPointerDown={(event) => {
-                          if (!editable || !shape.points || !surfaceRef.current || event.button !== 0) {
-                            return;
-                          }
-
-                          event.stopPropagation();
-                          onSelectShape?.(shape.id);
-                          onSelectPoint?.(null);
-
-                          const rect = surfaceRef.current.getBoundingClientRect();
-
-                          setDragState({
-                            mode: "shape",
-                            shapeId: shape.id,
-                            start: toStagePoint(event.clientX, event.clientY, rect, project),
-                            originPoints: [...shape.points]
-                          });
-                        }}
-                        onDoubleClick={(event) => {
-                          if (!editable || !shape.points || !onPointsChange || !surfaceRef.current) {
-                            return;
-                          }
-
-                          event.stopPropagation();
-
-                          const rect = surfaceRef.current.getBoundingClientRect();
-                          const stagePoint = toStagePoint(event.clientX, event.clientY, rect, project);
-                          const threshold = 18 / (rect.width / project.width);
-                          const insertion = findInsertion(shape.points, stagePoint, threshold);
-
-                          if (!insertion) {
-                            return;
-                          }
-
-                          const nextPoints = [...shape.points];
-                          nextPoints.splice(insertion.segmentIndex + 1, 0, insertion.point);
-                          onPointsChange(shape.id, nextPoints);
-                          onSelectShape?.(shape.id);
-                          onSelectPoint?.(insertion.segmentIndex + 1);
-                        }}
+                      <polygon
+                        points={svgPointsString(relativePoints)}
+                        fill="transparent"
+                        stroke={selected ? "#f97316" : shape.style.stroke}
+                        strokeWidth={selected ? shape.style.strokeWidth + 1 : shape.style.strokeWidth}
+                        strokeDasharray={selected ? "10 8" : undefined}
                       />
-
-                      <svg
-                        className="mapping-layer__overlay"
-                        viewBox={`0 0 ${bounds.width} ${bounds.height}`}
-                        preserveAspectRatio="none"
-                      >
-                        <polygon
-                          points={svgPointsString(relativePoints)}
-                          fill="transparent"
-                          stroke={selected ? "#f97316" : shape.style.stroke}
-                          strokeWidth={selected ? shape.style.strokeWidth + 1 : shape.style.strokeWidth}
-                          strokeDasharray={selected ? "10 8" : undefined}
-                        />
-                      </svg>
-                    </div>
-                  </Fragment>
+                    </svg>
+                  </div>
                 );
               })}
 
