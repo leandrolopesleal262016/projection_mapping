@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { createDefaultProject, createDefaultQuad, normalizeProject } from "./index";
+import {
+  createDefaultProject,
+  createDefaultQuad,
+  createProjectionMediaPatches,
+  mergeProjectionScene,
+  normalizeProject,
+  stripSceneMedia
+} from "./index";
 
 describe("shared defaults", () => {
   it("creates a rectangle quad from a transform", () => {
@@ -82,5 +89,56 @@ describe("shared defaults", () => {
 
     expect(project.scene.shapes[0].type).toBe("polygon");
     expect(project.scene.shapes[0].points).toHaveLength(4);
+  });
+
+  it("strips unchanged media from realtime scenes and rebuilds it on merge", () => {
+    const project = createDefaultProject("media-demo");
+
+    project.scene.shapes[0].media = {
+      kind: "image",
+      src: "data:image/png;base64,AAAA",
+      mimeType: "image/png",
+      label: "sample",
+      objectFit: "cover"
+    };
+
+    const previousScene = structuredClone(project.scene);
+    const nextScene = structuredClone(project.scene);
+
+    nextScene.shapes[0].points = nextScene.shapes[0].points?.map((point) => ({
+      x: point.x + 10,
+      y: point.y
+    }));
+
+    const patches = createProjectionMediaPatches(nextScene, previousScene);
+    const strippedScene = stripSceneMedia(nextScene, patches);
+
+    expect(patches).toHaveLength(0);
+    expect(strippedScene.shapes[0].media.src).toBeNull();
+
+    const mergedScene = mergeProjectionScene(previousScene, strippedScene, patches);
+
+    expect(mergedScene.shapes[0].media.src).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("includes changed media as realtime patches", () => {
+    const project = createDefaultProject("media-patch");
+    const previousScene = structuredClone(project.scene);
+    const nextScene = structuredClone(project.scene);
+
+    nextScene.shapes[1].media = {
+      kind: "video",
+      src: "data:video/mp4;base64,BBBB",
+      mimeType: "video/mp4",
+      label: "clip",
+      objectFit: "contain"
+    };
+
+    const patches = createProjectionMediaPatches(nextScene, previousScene);
+    const strippedScene = stripSceneMedia(nextScene, patches);
+
+    expect(patches).toHaveLength(1);
+    expect(patches[0]?.shapeId).toBe(nextScene.shapes[1].id);
+    expect(strippedScene.shapes[1].media.src).toBe("data:video/mp4;base64,BBBB");
   });
 });

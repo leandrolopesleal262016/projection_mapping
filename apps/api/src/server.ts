@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 
 import { Server } from "socket.io";
+import { mergeProjectionScene, type ProjectionMediaPatch, type ProjectScene } from "@projection-mapping/shared";
 
 import { createApp } from "./app.js";
 import { createProjectRepository } from "./repository.js";
@@ -9,6 +10,14 @@ const port = Number(process.env.PORT ?? 3001);
 const repository = createProjectRepository();
 const app = createApp(repository);
 const server = createServer(app);
+const liveProjectionStates = new Map<
+  string,
+  {
+    scene: ProjectScene;
+    updatedAt: string;
+    playbackMode: "play" | "stop";
+  }
+>();
 
 const io = new Server(server, {
   cors: {
@@ -21,20 +30,47 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   socket.on("project:join", (projectId: string) => {
     socket.join(projectId);
+    const liveState = liveProjectionStates.get(projectId);
+
+    if (liveState) {
+      socket.emit("projection:state_updated", {
+        projectId,
+        scene: liveState.scene,
+        updatedAt: liveState.updatedAt,
+        playbackMode: liveState.playbackMode
+      });
+      return;
+    }
+
     const project = repository.getProject(projectId);
 
     if (project) {
       socket.emit("projection:state_updated", {
         projectId,
         scene: project.scene,
-        updatedAt: project.updatedAt
+        updatedAt: project.updatedAt,
+        playbackMode: "play"
       });
     }
   });
 
   socket.on(
     "scene:announce",
-    (payload: { projectId: string; scene: unknown; updatedAt: string }) => {
+    (payload: {
+      projectId: string;
+      scene: ProjectScene;
+      updatedAt: string;
+      playbackMode: "play" | "stop";
+      mediaPatches?: ProjectionMediaPatch[];
+    }) => {
+      const baseScene =
+        liveProjectionStates.get(payload.projectId)?.scene ?? repository.getProject(payload.projectId)?.scene ?? payload.scene;
+
+      liveProjectionStates.set(payload.projectId, {
+        scene: mergeProjectionScene(baseScene, payload.scene, payload.mediaPatches ?? []),
+        updatedAt: payload.updatedAt,
+        playbackMode: payload.playbackMode
+      });
       io.to(payload.projectId).emit("projection:state_updated", payload);
     }
   );

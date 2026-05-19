@@ -1,9 +1,13 @@
-import type { ProjectRecord } from "@projection-mapping/shared";
+import type { ProjectRecord, ProjectionMediaPatch } from "@projection-mapping/shared";
+
+export type PlaybackMode = "play" | "stop";
 
 export interface ProjectionStatePayload {
   projectId: string;
   scene: ProjectRecord["scene"];
   updatedAt: string;
+  playbackMode: PlaybackMode;
+  mediaPatches?: ProjectionMediaPatch[];
 }
 
 interface ProjectionChannelMessage {

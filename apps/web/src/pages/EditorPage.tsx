@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
-import type {
-  MediaFit,
-  Point,
-  ProjectRecord,
-  ProjectScene,
-  ProjectSummary,
-  Shape,
-  ShapeStyle
+import {
+  createProjectionMediaPatches,
+  stripSceneMedia,
+  type MediaFit,
+  type Point,
+  type ProjectRecord,
+  type ProjectScene,
+  type ProjectSummary,
+  type Shape,
+  type ShapeStyle
 } from "@projection-mapping/shared";
 
 import { InspectorPanel } from "../components/InspectorPanel";
@@ -16,7 +18,7 @@ import { MappingStage } from "../components/MappingStage";
 import { ProjectSidebar } from "../components/ProjectSidebar";
 import { createProject, exportProject, fetchProject, fetchProjects, importProject, saveProjectScene } from "../lib/api";
 import { createMediaFromFile } from "../lib/media-utils";
-import { getRealtimeChannel, postProjectionState } from "../lib/realtime";
+import { getRealtimeChannel, postProjectionState, type PlaybackMode } from "../lib/realtime";
 import {
   clearShapeMedia,
   cloneProjectWithScene,
@@ -50,10 +52,6 @@ function formatSavedAt(value: string | null): string {
   }).format(new Date(value));
 }
 
-function estimatePayloadBytes(value: unknown): number {
-  return new Blob([JSON.stringify(value)]).size;
-}
-
 function cloneSceneSnapshot(scene: ProjectScene): ProjectScene {
   if (typeof structuredClone === "function") {
     return structuredClone(scene);
@@ -75,7 +73,7 @@ export function EditorPage() {
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
-  const [playbackMode, setPlaybackMode] = useState<"play" | "stop">("play");
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("play");
   const [stageZoom, setStageZoom] = useState(1);
   const [status, setStatus] = useState("Carregando projetos...");
   const [isLoading, setIsLoading] = useState(true);
@@ -83,6 +81,8 @@ export function EditorPage() {
   const removalUndoRef = useRef<RemovalUndoEntry[]>([]);
   const socketRef = useRef(getSocket());
   const realtimeChannelRef = useRef(getRealtimeChannel());
+  const lastAnnouncedProjectRef = useRef<ProjectRecord | null>(null);
+  const playbackModeRef = useRef<PlaybackMode>("play");
 
   useEffect(() => {
     let ignore = false;
@@ -107,8 +107,11 @@ export function EditorPage() {
           setProject(loadedProject);
           setSelectedShapeId(loadedProject.scene.shapes[0]?.id ?? null);
           setSelectedPointIndex(null);
+          setPlaybackMode("play");
           setStageZoom(1);
           removalUndoRef.current = [];
+          lastAnnouncedProjectRef.current = loadedProject;
+          playbackModeRef.current = "play";
           setStatus("Projeto carregado.");
         } else {
           setStatus("Nenhum projeto disponivel.");
@@ -147,6 +150,10 @@ export function EditorPage() {
     };
   }, []);
 
+  useEffect(() => {
+    playbackModeRef.current = playbackMode;
+  }, [playbackMode]);
+
   const selectedShape = project?.scene.shapes.find((shape) => shape.id === selectedShapeId) ?? null;
 
   useEffect(() => {
@@ -179,8 +186,11 @@ export function EditorPage() {
       setProject(loadedProject);
       setSelectedShapeId(loadedProject.scene.shapes[0]?.id ?? null);
       setSelectedPointIndex(null);
+      setPlaybackMode("play");
       setStageZoom(1);
       removalUndoRef.current = [];
+      lastAnnouncedProjectRef.current = loadedProject;
+      playbackModeRef.current = "play";
       setStatus("Projeto pronto para edicao.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Falha ao abrir projeto.");
@@ -210,18 +220,21 @@ export function EditorPage() {
     });
   }
 
-  function announceProjectState(nextProject: ProjectRecord) {
+  function announceProjectState(nextProject: ProjectRecord, nextPlaybackMode = playbackModeRef.current) {
+    const previousScene = lastAnnouncedProjectRef.current?.scene ?? null;
+    const mediaPatches = createProjectionMediaPatches(nextProject.scene, previousScene);
     const payload = {
       projectId: nextProject.id,
-      scene: nextProject.scene,
-      updatedAt: nextProject.updatedAt
+      scene: stripSceneMedia(nextProject.scene, mediaPatches),
+      updatedAt: nextProject.updatedAt,
+      playbackMode: nextPlaybackMode,
+      mediaPatches
     };
 
     postProjectionState(realtimeChannelRef.current, payload);
-
-    if (estimatePayloadBytes(payload) <= 2 * 1024 * 1024) {
-      socketRef.current.emit("scene:announce", payload);
-    }
+    socketRef.current.emit("scene:announce", payload);
+    lastAnnouncedProjectRef.current = nextProject;
+    playbackModeRef.current = nextPlaybackMode;
   }
 
   function queueSave(nextProject: ProjectRecord, pendingStatus = "Alteracoes pendentes...") {
@@ -283,6 +296,18 @@ export function EditorPage() {
     setSelectedPointIndex(null);
   }
 
+  function handleTogglePlayback() {
+    if (!project) {
+      return;
+    }
+
+    const nextPlaybackMode: PlaybackMode = playbackMode === "play" ? "stop" : "play";
+
+    setPlaybackMode(nextPlaybackMode);
+    announceProjectState(project, nextPlaybackMode);
+    setStatus(nextPlaybackMode === "stop" ? "Videos pausados no editor e na saida." : "Videos reproduzindo no editor e na saida.");
+  }
+
   function handleUndoRemoval() {
     if (!project) {
       return;
@@ -340,8 +365,11 @@ export function EditorPage() {
     setProject(createdProject);
     setSelectedShapeId(createdProject.scene.shapes[0]?.id ?? null);
     setSelectedPointIndex(null);
+    setPlaybackMode("play");
     setStageZoom(1);
     removalUndoRef.current = [];
+    lastAnnouncedProjectRef.current = createdProject;
+    playbackModeRef.current = "play";
     setStatus("Projeto criado.");
   }
 
@@ -381,8 +409,11 @@ export function EditorPage() {
     setProject(imported);
     setSelectedShapeId(imported.scene.shapes[0]?.id ?? null);
     setSelectedPointIndex(null);
+    setPlaybackMode("play");
     setStageZoom(1);
     removalUndoRef.current = [];
+    lastAnnouncedProjectRef.current = imported;
+    playbackModeRef.current = "play";
     setStatus("Projeto importado.");
   }
 
@@ -471,7 +502,7 @@ export function EditorPage() {
             zoom={stageZoom}
             onSelectShape={handleSelectShape}
             onSelectPoint={setSelectedPointIndex}
-            onTogglePlayback={() => setPlaybackMode((current) => (current === "play" ? "stop" : "play"))}
+            onTogglePlayback={handleTogglePlayback}
             onZoomChange={setStageZoom}
             onPointsChange={(shapeId: string, points: Point[]) => mutateShape(shapeId, (shape) => updateShapePoints(shape, points))}
           />

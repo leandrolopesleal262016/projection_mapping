@@ -1,28 +1,30 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import type { ProjectRecord } from "@projection-mapping/shared";
+import { mergeProjectionScene, type ProjectRecord } from "@projection-mapping/shared";
 
 import { MappingStage } from "../components/MappingStage";
 import { fetchProject } from "../lib/api";
-import { getRealtimeChannel, type ProjectionStatePayload } from "../lib/realtime";
+import { getRealtimeChannel, type PlaybackMode, type ProjectionStatePayload } from "../lib/realtime";
 import { normalizeProjectForEditor } from "../lib/scene-utils";
 import { getSocket } from "../lib/socket";
 
 export function ProjectionPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState<ProjectRecord | null>(null);
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>("play");
 
   function applyIncomingState(payload: ProjectionStatePayload, currentProjectId: string) {
     if (payload.projectId !== currentProjectId) {
       return;
     }
 
+    setPlaybackMode(payload.playbackMode);
     setProject((current) =>
       current
         ? normalizeProjectForEditor({
             ...current,
-            scene: payload.scene,
+            scene: mergeProjectionScene(current.scene, payload.scene, payload.mediaPatches ?? []),
             updatedAt: payload.updatedAt
           })
         : current
@@ -94,6 +96,7 @@ export function ProjectionPage() {
         <MappingStage
           project={project}
           selectedShapeId={null}
+          playbackMode={playbackMode}
           showChrome={false}
           surfaceBackground="#000000"
         />

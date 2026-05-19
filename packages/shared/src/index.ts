@@ -61,6 +61,11 @@ export interface ProjectScene {
   shapes: Shape[];
 }
 
+export interface ProjectionMediaPatch {
+  shapeId: string;
+  media: ShapeMedia;
+}
+
 export interface ProjectRecord {
   id: string;
   name: string;
@@ -233,6 +238,16 @@ function normalizeMedia(shape: Partial<Shape>): ShapeMedia {
   return DEFAULT_MEDIA;
 }
 
+function mediaMatches(first: ShapeMedia, second: ShapeMedia): boolean {
+  return (
+    first.kind === second.kind &&
+    first.src === second.src &&
+    first.mimeType === second.mimeType &&
+    first.label === second.label &&
+    first.objectFit === second.objectFit
+  );
+}
+
 function pointsMatch(first: Point[], second: Point[]): boolean {
   if (first.length !== second.length) {
     return false;
@@ -335,6 +350,89 @@ export function normalizeProject(project: ProjectRecord): ProjectRecord {
       background: project.scene.background || "#081421",
       shapes: project.scene.shapes.map((shape) => normalizeShape(shape))
     }
+  };
+}
+
+export function createProjectionMediaPatches(
+  scene: ProjectScene,
+  previousScene: ProjectScene | null = null
+): ProjectionMediaPatch[] {
+  const previousShapes = new Map(previousScene?.shapes.map((shape) => [shape.id, shape]) ?? []);
+
+  return scene.shapes.flatMap((shape) => {
+    const previousShape = previousShapes.get(shape.id);
+
+    if (previousShape && mediaMatches(shape.media, previousShape.media)) {
+      return [];
+    }
+
+    return [
+      {
+        shapeId: shape.id,
+        media: {
+          ...shape.media
+        }
+      }
+    ];
+  });
+}
+
+export function stripSceneMedia(
+  scene: ProjectScene,
+  mediaPatches: ProjectionMediaPatch[] = []
+): ProjectScene {
+  const patchShapeIds = new Set(mediaPatches.map((patch) => patch.shapeId));
+
+  return {
+    ...scene,
+    shapes: scene.shapes.map((shape) => ({
+      ...shape,
+      media:
+        shape.media.src && !patchShapeIds.has(shape.id)
+          ? {
+              ...shape.media,
+              src: null
+            }
+          : {
+              ...shape.media
+            }
+    }))
+  };
+}
+
+export function mergeProjectionScene(
+  baseScene: ProjectScene,
+  incomingScene: ProjectScene,
+  mediaPatches: ProjectionMediaPatch[] = []
+): ProjectScene {
+  const baseShapes = new Map(baseScene.shapes.map((shape) => [shape.id, shape]));
+  const patchMap = new Map(mediaPatches.map((patch) => [patch.shapeId, patch.media]));
+
+  return {
+    ...incomingScene,
+    shapes: incomingScene.shapes.map((shape) => {
+      const patchedMedia = patchMap.get(shape.id);
+
+      if (patchedMedia) {
+        return {
+          ...shape,
+          media: {
+            ...patchedMedia
+          }
+        };
+      }
+
+      if (shape.media.src || shape.media.kind === "none") {
+        return shape;
+      }
+
+      return {
+        ...shape,
+        media: {
+          ...(baseShapes.get(shape.id)?.media ?? shape.media)
+        }
+      };
+    })
   };
 }
 
